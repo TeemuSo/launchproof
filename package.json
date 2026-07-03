@@ -3,11 +3,13 @@
   "version": "1.0.0",
   "description": "LaunchProof — author a Playwright spec, run it against a running app, and replay the recorded run (video + step timeline + WORKING/BROKEN/INCONCLUSIVE verdict) so a human can actually see whether it worked. A LaunchGuard subproduct.",
   "type": "module",
-  "private": true,
   "scripts": {
     "serve": "node viewer/serve.js"
   },
   "devDependencies": {
     "@playwright/test": "^1.48.0"
-  }
+  },
+  "license": "MIT",
+  "repository": "https://github.com/TeemuSo/launchproof",
+  "homepage": "https://github.com/TeemuSo/launchproof"
 }

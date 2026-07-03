@@ -1,6 +1,6 @@
 ---
 name: launchproof
-description: Prove a web feature actually works by driving it in a real browser and producing recorded proof, instead of trusting a screenshot or a green build. Use after building or changing any user-facing feature, or when asked to "prove it works", "did it actually work", "verify the flow", "write an e2e test", "test this in a real browser", or before saying a feature is done. Authors a Playwright e2e test, runs it against the running app, and produces a seekable video + per-step timeline + WORKING/BROKEN/INCONCLUSIVE verdict. The harness is a shared git checkout ($LAUNCHPROOF_HOME); your project keeps only its own tests and recorded runs under .launchproof/ — re-run them by name, never starting from scratch.
+description: Prove a web feature actually works by driving it in a real browser and producing recorded proof, instead of trusting a screenshot or a green build. Use after building or changing any user-facing feature, or when asked to "prove it works", "did it actually work", "verify the flow", "write an e2e test", "test this in a real browser", or before saying a feature is done. Authors a Playwright e2e test, runs it against the running app, and produces a seekable video + per-step timeline + WORKING/BROKEN/INCONCLUSIVE verdict. The harness lives at $LAUNCHPROOF_HOME (a git checkout, or the installed Claude Code plugin); your project keeps only its own tests and recorded runs under .launchproof/ — re-run them by name, never starting from scratch.
 ---
 
 # LaunchProof
@@ -8,9 +8,7 @@ description: Prove a web feature actually works by driving it in a real browser 
 The vibe-coding gap: an AI builds a feature, says "done", and never opens the page.
 LaunchProof closes it. It is a thin wrapper on Playwright.
 
-**Free because it's local.** LaunchProof runs in your own browser on your own machine (zero
-LaunchGuard browser-minutes), which is why it's the free lead-magnet for browser-level proof;
-LaunchGuard's *hosted* browser e2e is the paid (Pro) product. See `MONETIZATION.md`.
+Runs entirely locally: Playwright in your own browser on your own machine. Free.
 
 **Code vs data.** The harness (run.mjs, config, reporter, dashboard, template) is a shared
 git checkout at `$LAUNCHPROOF_HOME` (default `~/Projects/launchproof`). Your project holds
@@ -23,10 +21,16 @@ the new code; their tests and runs are untouched.
 
 Do NOT say "done" on user-facing work until the run is WORKING and the user has a recording.
 
-## One-time setup per project
+## One-time setup
 
+Resolve the harness (an explicit `$LAUNCHPROOF_HOME` wins; a Claude Code plugin install is
+the harness itself; else the default checkout) and make sure its deps exist:
 ```bash
-export LAUNCHPROOF_HOME="${LAUNCHPROOF_HOME:-$HOME/Projects/launchproof}"
+export LAUNCHPROOF_HOME="${LAUNCHPROOF_HOME:-${CLAUDE_PLUGIN_ROOT:-$HOME/Projects/launchproof}}"
+[ -d "$LAUNCHPROOF_HOME/node_modules" ] || npm --prefix "$LAUNCHPROOF_HOME" install  # once per machine; re-run after a plugin update
+```
+Then per project:
+```bash
 mkdir -p .launchproof/tests/helpers
 cp "$LAUNCHPROOF_HOME/tests/example.spec.ts" .launchproof/tests/
 cp "$LAUNCHPROOF_HOME/tests/helpers/shot.ts"  .launchproof/tests/helpers/

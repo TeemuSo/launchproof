@@ -1,0 +1,8 @@
+{
+  "name": "launchproof",
+  "displayName": "LaunchProof",
+  "description": "Prove a web feature actually works: a real browser drives the app and records seekable video, a step timeline, and a WORKING/BROKEN/INCONCLUSIVE verdict. Local and free.",
+  "homepage": "https://github.com/TeemuSo/launchproof",
+  "repository": "https://github.com/TeemuSo/launchproof",
+  "license": "MIT"
+}

@@ -39,12 +39,22 @@ launchproof/                 ← this repo (the harness, $LAUNCHPROOF_HOME)
 ## Setup
 
 ```bash
-git clone <this-repo> ~/Projects/launchproof
+git clone https://github.com/TeemuSo/launchproof ~/Projects/launchproof
 cd ~/Projects/launchproof && npm install     # once per machine
 export LAUNCHPROOF_HOME=~/Projects/launchproof
 ```
 Update later with `git -C "$LAUNCHPROOF_HOME" pull` — every consuming project instantly
 uses the new harness; their tests and runs are untouched.
+
+Or install it as a **Claude Code plugin** — agents in your project gain the `launchproof`
+skill, and the plugin install serves as the harness (`npm install` runs on first use):
+
+```
+/plugin marketplace add TeemuSo/launchproof
+/plugin install launchproof@launchproof
+```
+
+You can also just tell Claude Code: *"install the launchproof plugin from TeemuSo/launchproof"*.
 
 ## Run
 

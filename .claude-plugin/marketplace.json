@@ -1,0 +1,12 @@
+{
+  "name": "launchproof",
+  "description": "LaunchProof — recorded browser proof that a feature actually works. The agent says done; this shows you.",
+  "owner": { "name": "TeemuSo" },
+  "plugins": [
+    {
+      "name": "launchproof",
+      "source": "./",
+      "description": "Playwright e2e harness with recorded video + WORKING/BROKEN/INCONCLUSIVE verdicts; your project keeps only its specs and runs under .launchproof/."
+    }
+  ]
+}
