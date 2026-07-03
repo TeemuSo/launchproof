@@ -230,6 +230,130 @@ h1, h2, h3, .display {
 .verdict-broken { border-color: var(--stamp-red); color: var(--stamp-red); background: rgba(217,105,95,0.06); }
 .verdict-inconclusive { border-color: var(--stamp-amber); color: var(--stamp-amber); background: rgba(217,164,65,0.06); }
 
+/* ---------- success conditions (the assertions the verdict is decided on) ---------- */
+
+.gates-block {
+  border: 1px solid var(--line);
+  background: var(--paper-panel);
+  padding: 14px 16px;
+  margin-bottom: 14px;
+}
+
+.gates-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+  margin-bottom: 10px;
+}
+
+.gate-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 10px;
+  padding: 6px 0;
+}
+
+.gate-row + .gate-row {
+  border-top: 1px dashed var(--line);
+}
+
+.gate-icon {
+  width: 18px;
+  text-align: center;
+  font-weight: 700;
+  flex-shrink: 0;
+}
+
+.gate-icon.passed { color: var(--stamp-green); }
+.gate-icon.failed { color: var(--stamp-red); }
+.gate-icon.skipped { color: var(--ink-dim); }
+
+.gate-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.gate-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.gate-skipped .gate-name {
+  color: var(--ink-dim);
+  font-weight: 400;
+}
+
+.gate-note {
+  font-size: 11px;
+  color: var(--ink-dim);
+  margin-left: 8px;
+}
+
+.assert-grid {
+  display: grid;
+  grid-template-columns: 72px 1fr;
+  gap: 4px 12px;
+  margin-top: 8px;
+  font-size: 12px;
+}
+
+.assert-key {
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  font-size: 10px;
+  letter-spacing: 0.1em;
+  padding-top: 2px;
+}
+
+.assert-val {
+  word-break: break-all;
+  background: var(--paper-darker);
+  border: 1px solid var(--line);
+  padding: 4px 8px;
+}
+
+.assert-val.assert-expected {
+  color: var(--stamp-green);
+  border-color: var(--stamp-green-dim);
+}
+
+.assert-val.assert-received {
+  color: var(--stamp-red);
+  border-color: var(--stamp-red-dim);
+}
+
+.assert-matcher {
+  display: inline-block;
+  border: 1px solid var(--accent);
+  color: var(--accent);
+  padding: 1px 8px;
+  font-size: 11px;
+  margin-right: 8px;
+}
+
+/* ---------- meaning (the author's plain-English explanation) ---------- */
+
+.meaning-box {
+  border: 1px dashed var(--accent);
+  background: rgba(201, 169, 98, 0.05);
+  padding: 12px 16px;
+  margin-bottom: 22px;
+}
+
+.meaning-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--accent);
+  margin-bottom: 6px;
+}
+
+.meaning-text {
+  font-size: 13px;
+  line-height: 1.55;
+}
+
 .video-frame {
   border: 1px solid var(--line);
   background: #000;

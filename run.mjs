@@ -16,7 +16,7 @@
 // dir (e.g. <repo>/.launchproof); it defaults to ROOT for standalone use.
 
 import { spawnSync } from 'node:child_process';
-import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, existsSync, readdirSync, symlinkSync, lstatSync } from 'node:fs';
+import { readFileSync, writeFileSync, mkdirSync, copyFileSync, rmSync, existsSync, readdirSync, symlinkSync, lstatSync, readlinkSync, unlinkSync } from 'node:fs';
 import path from 'node:path';
 import { fileURLToPath } from 'node:url';
 
@@ -44,9 +44,16 @@ function linkNodeModules(dataDir) {
   }
   try {
     if (existsSync(dnm)) {
-      if (lstatSync(dnm).isSymbolicLink()) return; // already ours
-      console.error(`launchproof: ${dnm} is a real node_modules; remove it so specs resolve the harness's single Playwright copy.`);
-      return;
+      if (!lstatSync(dnm).isSymbolicLink()) {
+        console.error(`launchproof: ${dnm} is a real node_modules; remove it so specs resolve the harness's single Playwright copy.`);
+        return;
+      }
+      // A symlink into a DIFFERENT harness install (an old checkout, an
+      // outdated plugin cache) mixes two Playwright copies in one process,
+      // which Playwright hard-rejects ("Requiring @playwright/test second
+      // time"). Re-point it at THIS harness instead of trusting it blindly.
+      if (path.resolve(readlinkSync(dnm)) === path.resolve(rootNm)) return; // already ours
+      unlinkSync(dnm);
     }
     symlinkSync(rootNm, dnm, 'dir');
   } catch (e) {
@@ -107,7 +114,9 @@ function main() {
     return;
   }
 
-  const intent = extractIntent(specAbsPath);
+  const specTest = (spec.tests && spec.tests[0]) || null;
+  const intent = intentFromReport(spec, specTest) || extractIntent(specAbsPath);
+  const meaning = meaningFromReport(specTest);
   const declaredStepNames = extractDeclaredStepNames(specAbsPath);
 
   const startedAt = testResult.startTime;
@@ -223,6 +232,7 @@ function main() {
     test: testName,
     title: spec.title,
     intent,
+    meaning,
     target: TARGET_URL,
     verdict,
     startedAt,
@@ -396,10 +406,37 @@ function findShotFiles(testResultDir) {
     .map((f) => path.join(testResultDir, f));
 }
 
+// LEGACY fallback only: pre-native-tags specs declared intent as a
+// `// @intent: functional` comment. New specs use `tag: '@functional'`
+// on the test itself (see intentFromReport above).
 function extractIntent(specAbsPath) {
   const src = readFileSync(specAbsPath, 'utf8');
   const match = src.match(/\/\/\s*@intent:\s*(\S+)/);
   return match ? match[1] : 'unknown';
+}
+
+// Intent and meaning come from Playwright's NATIVE test metadata -- no
+// bespoke comment notation. The spec declares them on the test itself:
+//
+//   test('title', {
+//     tag: '@functional',                        // or '@security'
+//     annotation: { type: 'meaning', description: 'plain-English ...' },
+//   }, async ({ page }) => { ... });
+//
+// Both flow through Playwright's JSON reporter (spec.tags / test.annotations),
+// so the harness reads the report it already has. The `// @intent:` comment
+// remains only as a LEGACY fallback for specs written before native tags.
+function intentFromReport(spec, test) {
+  const tags = [...(spec.tags || []), ...((test && test.tags) || [])];
+  const found = tags
+    .map((t) => String(t).replace(/^@/, '').toLowerCase())
+    .find((t) => t === 'functional' || t === 'security');
+  return found || null;
+}
+
+function meaningFromReport(test) {
+  const ann = ((test && test.annotations) || []).find((a) => a.type === 'meaning');
+  return ann && ann.description ? String(ann.description) : null;
 }
 
 function extractDeclaredStepNames(specAbsPath) {
@@ -451,6 +488,7 @@ function writeInconclusiveRun(testName, reason) {
     test: testName,
     title: testName,
     intent: 'unknown',
+    meaning: null,
     target: TARGET_URL,
     verdict: 'INCONCLUSIVE',
     startedAt,

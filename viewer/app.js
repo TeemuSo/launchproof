@@ -137,6 +137,8 @@ function renderTheater(run) {
       </div>
       <div class="verdict-icon">${run.verdict}</div>
     </div>
+    ${renderGates(run)}
+    ${renderMeaning(run)}
     <div class="video-frame">${videoHtml}</div>
     ${chapterTrackHtml}
     <div class="section-title">Step timeline</div>
@@ -410,17 +412,109 @@ function setupChapterTrack(run) {
   video.addEventListener('timeupdate', highlightCurrent);
 }
 
+// The banner headline is always the clean test title -- WHAT is being
+// tested. The verdict itself lives in the stamp on the right (and the
+// banner's color), never shouted inside the title.
 function bannerLabelFor(run) {
-  if (run.verdict === 'WORKING') return `WORKING -- ${run.title || run.test}`;
-  if (run.verdict === 'BROKEN') return `BROKEN -- ${run.failureStep || 'unknown step'}`;
-  return `INCONCLUSIVE -- could not determine (target down / timeout)`;
+  return escapeHtml(run.title || run.test);
 }
 
 function bannerSubFor(run) {
-  if (run.verdict === 'WORKING') return 'Does what it should: every gate observed the real page in the expected state.';
-  if (run.verdict === 'BROKEN') return `The test reached the app and saw the wrong thing at "${run.failureStep || 'unknown step'}".`;
-  if (run.harnessError) return run.harnessError;
+  if (run.verdict === 'WORKING') return 'All success conditions below were met.';
+  if (run.verdict === 'BROKEN') return 'A success condition below was not met.';
+  if (run.harnessError) return escapeHtml(run.harnessError);
   return 'The test could not reliably observe the app -- this is not a verdict on the app itself.';
+}
+
+// Pulls the structured core out of a Playwright assertion error: which
+// matcher fired, what was expected, what was actually received. This is
+// what defines the verdict, so the dashboard shows it as first-class data
+// instead of burying it in a raw error dump.
+function parseAssertion(error) {
+  if (!error) return null;
+  const head = (error.split('\n')[0] || '').replace(/^Error:\s*/, '').replace(/\s*failed\s*$/, '').trim();
+  const matcherMatch = error.match(/expect\([^)]*\)\.(\w+)/) || error.match(/Expect "(\w+)"/);
+  const expectedMatch = error.match(/^Expected(?: pattern| string| value|)?:\s*(.+)$/m);
+  const receivedMatch = error.match(/^Received(?: string| value|)?:\s*(.+)$/m);
+  const timeoutMatch = error.match(/^Timeout:\s*(\d+)ms/m);
+  if (!matcherMatch && !expectedMatch && !receivedMatch) return null;
+  return {
+    head,
+    matcher: matcherMatch ? matcherMatch[1] : null,
+    expected: expectedMatch ? expectedMatch[1].trim() : null,
+    received: receivedMatch ? receivedMatch[1].trim() : null,
+    timeoutMs: timeoutMatch ? Number(timeoutMatch[1]) : null,
+  };
+}
+
+// "Success conditions": one row per gate, in order -- the actual expect()s
+// the verdict is decided on. A failed gate expands into an EXPECTED / GOT
+// diff parsed from the real assertion error; passed gates read as met
+// conditions; skipped gates never ran because an earlier gate failed.
+function renderGates(run) {
+  const steps = run.steps || [];
+  if (steps.length === 0) return '';
+
+  const rows = steps.map((step) => {
+    const icon = step.status === 'passed' ? '✓' : step.status === 'failed' ? '✗' : '–';
+    const note = step.status === 'skipped' ? '<span class="gate-note">never reached — an earlier condition failed</span>' : '';
+
+    let assertHtml = '';
+    if (step.status === 'failed' && step.error) {
+      const a = parseAssertion(step.error);
+      if (a) {
+        const matcherChip = a.matcher
+          ? `<span class="assert-matcher">${escapeHtml(a.matcher)}</span>${a.timeoutMs ? `<span class="gate-note">gave up after ${(a.timeoutMs / 1000).toFixed(0)}s of retrying</span>` : ''}`
+          : '';
+        const expectedRow = a.expected
+          ? `<div class="assert-key">expected</div><div class="assert-val assert-expected">${escapeHtml(a.expected)}</div>`
+          : '';
+        const receivedRow = a.received
+          ? `<div class="assert-key">got</div><div class="assert-val assert-received">${escapeHtml(a.received)}</div>`
+          : '';
+        assertHtml = `
+          <div class="assert-grid">
+            ${matcherChip ? `<div class="assert-key">assertion</div><div class="assert-val">${matcherChip}</div>` : ''}
+            ${expectedRow}
+            ${receivedRow}
+            ${!expectedRow && !receivedRow ? `<div class="assert-key">error</div><div class="assert-val">${escapeHtml(a.head)}</div>` : ''}
+          </div>
+        `;
+      } else {
+        assertHtml = `<div class="assert-grid"><div class="assert-key">error</div><div class="assert-val">${escapeHtml(step.error.split('\n')[0])}</div></div>`;
+      }
+    }
+
+    return `
+      <div class="gate-row gate-${step.status}">
+        <div class="gate-icon ${step.status}">${icon}</div>
+        <div class="gate-body">
+          <span class="gate-name">${escapeHtml(step.name)}</span>
+          ${note}
+          ${assertHtml}
+        </div>
+      </div>
+    `;
+  }).join('');
+
+  return `
+    <div class="gates-block">
+      <div class="gates-title">Success conditions</div>
+      ${rows}
+    </div>
+  `;
+}
+
+// The author's plain-English explanation (the spec's `// @lp-meaning:` tag,
+// carried through result.json) of what this verdict means for the product.
+function renderMeaning(run) {
+  if (!run.meaning) return '';
+  return `
+    <div class="meaning-box">
+      <div class="meaning-title">What this means</div>
+      <div class="meaning-text">${escapeHtml(run.meaning)}</div>
+    </div>
+  `;
 }
 
 // A step's actions[] (see reporter.mjs / run.mjs) are the pw:api sub-steps
@@ -459,7 +553,7 @@ function renderStep(runId, step) {
       <div class="step-icon ${step.status}">${icon}</div>
       <div class="step-body">
         <span class="step-name">${String(step.index).padStart(2, '0')}. ${escapeHtml(step.name)}</span>
-        <span class="step-status-tag">${step.status}${step.status === 'failed' ? ' — FAILED' : ''}</span>
+        <span class="step-status-tag">${step.status}</span>
         ${errorHtml}
         ${actionsHtml}
       </div>

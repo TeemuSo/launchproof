@@ -45,7 +45,9 @@ shared cache is missing it.
 
 2. **Author the test.** Copy `.launchproof/tests/example.spec.ts` to
    `.launchproof/tests/<feature>.spec.ts` and edit the two gates. Drive the real UI on
-   user-facing locators; follow the checklist.
+   user-facing locators; follow the checklist. Test the EXACT page and flow the user
+   named — never a synthetic reconstruction of it on a different page; if the user says
+   "the demo site", the spec opens the demo site.
 
 3. **Run it** from the project root:
    ```bash
@@ -55,10 +57,16 @@ shared cache is missing it.
    `LP_SLOWMO=0` for fast iteration.
 
 4. **Look, then hand over.** Read `.launchproof/runs/<id>/result.json` and the step
-   screenshots yourself — never claim done from a green line. Serve the dashboard:
+   screenshots yourself — never claim done from a green line. Then ALWAYS serve the
+   dashboard and hand the user its URL — the dashboard (video + step timeline + parsed
+   assertions), not a raw video file, is the deliverable a human reviews:
    ```bash
    LAUNCHPROOF_DIR="$PWD/.launchproof" node "$LAUNCHPROOF_HOME/viewer/serve.js"   # http://localhost:4321
    ```
+   The startup line prints `serving runs from <dir>` — confirm it is YOUR project's
+   `.launchproof/runs`. An `EADDRINUSE` means another viewer (possibly another project's)
+   already owns the port: start yours on a free one with `PORT=4322`, and never kill a
+   process you didn't start.
 
 5. **Re-run after every change.** Tests accumulate — re-running is the point.
 
@@ -78,3 +86,9 @@ This is how a system can auto-receive a verdict (e.g. VUORO attaches proof to an
 - Two gates in named `recordedStep()`s: gate A reaches and asserts the real state; gate B
   is one crisp acceptance expect on what the user cares about.
 - Assert the real value, never a placeholder.
+- Metadata is NATIVE Playwright, never invented comment tags: intent as a native tag
+  (`tag: '@functional'` or `'@security'`) and a plain-English meaning as a native
+  annotation (`annotation: { type: 'meaning', description: '...' }`) in the test's
+  details object. The meaning is what a non-author reads on the dashboard to understand
+  what green/red MEANS for the product — write it for them, one or two sentences.
+  (`// @intent:` comments are a legacy fallback only.)

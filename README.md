@@ -86,6 +86,24 @@ locators; awaited web-first assertions; no hard waits; drive the real UI; two na
 `recordedStep()` gates; assert the real value, never a placeholder. See
 `skills/launchproof/SKILL.md` for the full checklist.
 
+Test metadata is **native Playwright**, not bespoke comments: declare intent as a native
+tag and the plain-English meaning as a native annotation in the test's details object —
+
+```ts
+test('returning visitor lands on the new hub', {
+  tag: '@functional',   // or '@security'
+  annotation: {
+    type: 'meaning',
+    description: 'Red means returning customers are dropped on the legacy page.',
+  },
+}, async ({ page }, testInfo) => { /* gates */ });
+```
+
+Both flow through Playwright's JSON reporter into `result.json`. The dashboard renders the
+failing assertion (matcher / expected / got) as first-class "Success conditions" and the
+annotation as "What this means". The legacy `// @intent:` comment still works as a
+fallback for pre-native specs.
+
 ## Requirements
 
 - Node 18+ and Playwright's chromium (`npx playwright install chromium` if the shared

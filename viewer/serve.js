@@ -198,4 +198,7 @@ const server = http.createServer((req, res) => {
 
 server.listen(PORT, () => {
   console.log(`LaunchProof viewer running at http://localhost:${PORT}`);
+  // Say WHICH data it serves -- two viewers on adjacent ports showing
+  // different projects' runs are indistinguishable without this line.
+  console.log(`serving runs from ${RUNS_DIR}`);
 });
