@@ -108,11 +108,19 @@ function main() {
     return;
   }
 
-  const { spec, testResult } = extractSpecAndResult(report);
-  if (!spec || !testResult) {
-    writeInconclusiveRun(testName, 'Playwright report contained no test result to parse.');
+  const results = collectResults(report);
+  if (results.length === 0) {
+    writeInconclusiveRun(testName, 'Playwright report contained no test result to parse (empty or errored run).');
     return;
   }
+  if (results.length > 1) {
+    console.error(
+      `launchproof: this spec file has ${results.length} tests; LaunchProof records ONE per file. ` +
+        `Recording only the first ("${results[0].spec.title}"). Split the rest into separate ` +
+        `<feature>-<case>.spec.ts files so each gets its own verdict and recording.`,
+    );
+  }
+  const { spec, testResult } = results[0];
 
   const specTest = (spec.tests && spec.tests[0]) || null;
   const intent = intentFromReport(spec, specTest) || extractIntent(specAbsPath);
@@ -320,15 +328,24 @@ function isAssertionFailure(message) {
   return /^Error:\s*expect\(/i.test(message.trim()) || /AssertionError/i.test(message);
 }
 
-function extractSpecAndResult(report) {
-  for (const suite of report.suites || []) {
+// Collect every (spec, testResult) pair in the report, recursing into nested
+// suites so a test.describe() block is seen (Playwright nests its specs under
+// suite.suites). LaunchProof records ONE test per run — result.json and the
+// dashboard model a single test with its gates — so main() records the first
+// pair and warns when there are more, degrading a stray describe or second
+// test to a clear, actionable message instead of a silent INCONCLUSIVE.
+function collectResults(report) {
+  const out = [];
+  const walk = (suite) => {
     for (const spec of suite.specs || []) {
       const test = spec.tests && spec.tests[0];
       const testResult = test && test.results && test.results[0];
-      if (testResult) return { spec, testResult };
+      if (testResult) out.push({ spec, testResult });
     }
-  }
-  return { spec: null, testResult: null };
+    for (const child of suite.suites || []) walk(child);
+  };
+  for (const suite of report.suites || []) walk(suite);
+  return out;
 }
 
 /**

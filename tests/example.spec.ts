@@ -1,5 +1,8 @@
 // COPY ME. This is the starting pattern for a LaunchProof test. Duplicate this
 // file to tests/<your-feature>.spec.ts and edit the two gates for your feature.
+// ONE test() per file -- only the first test is recorded (a second is dropped
+// with a warning; a describe around a single test is fine). Split scenarios
+// into separate <feature>-<case>.spec.ts files.
 //
 // RULES this file follows (keep them -- they kill flakiness and fake passes):
 //   1. LOCATORS: user-facing, role-based, in priority order getByRole ->
@@ -18,6 +21,9 @@
 //      outcome a user cares about.
 //   6. ASSERT THE REAL VALUE, never a placeholder. The classic AI failure is a
 //      test that passes while the price still shows $0.00. Check what matters.
+//      Name it the way the user would point at it on screen (the visible label,
+//      the price, the chip) -- not a numeric proxy like a magic rgb() or pixel
+//      width, which proves nothing to whoever reads the dashboard.
 //   7. METADATA IS NATIVE PLAYWRIGHT, not comments: declare the intent as a
 //      native tag ('@functional' or '@security') and the plain-English meaning
 //      as a native annotation ({ type: 'meaning', ... }) in the test's details

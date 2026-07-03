@@ -41,13 +41,18 @@ shared cache is missing it.
 ## The loop
 
 1. **Target running.** The app must be up locally. Default target `http://localhost:3000`;
-   override with `export TARGET_URL=http://localhost:PORT`.
+   override with `export TARGET_URL=http://localhost:PORT` (not on 3000? find the port:
+   `lsof -iTCP -sTCP:LISTEN -P | grep node`).
 
 2. **Author the test.** Copy `.launchproof/tests/example.spec.ts` to
    `.launchproof/tests/<feature>.spec.ts` and edit the two gates. Drive the real UI on
    user-facing locators; follow the checklist. Test the EXACT page and flow the user
    named — never a synthetic reconstruction of it on a different page; if the user says
    "the demo site", the spec opens the demo site.
+   **One `test()` per file** — LaunchProof records one test per run, so only the first is
+   captured; a second is dropped with a warning (a `test.describe` around a single test is
+   fine). Split scenarios into separate `<feature>-<case>.spec.ts` files. Behind a login?
+   Load a captured session with `test.use({ storageState })`, file kept in `.launchproof/auth/`.
 
 3. **Run it** from the project root:
    ```bash
@@ -85,7 +90,12 @@ This is how a system can auto-receive a verdict (e.g. VUORO attaches proof to an
 - Drive the real UI (click/fill), not `page.evaluate` or API calls.
 - Two gates in named `recordedStep()`s: gate A reaches and asserts the real state; gate B
   is one crisp acceptance expect on what the user cares about.
-- Assert the real value, never a placeholder.
+- Assert the thing you'd point at on screen, named in the user's words — the visible label,
+  the price, the chip — not a numeric proxy. A magic `rgb(...)` or pixel width means nothing
+  to whoever reads the dashboard; prefer a semantic class or the visible text. Never a placeholder.
+- Visual/layout change? The screenshot is the proof a human eyeballs. Keep assertions to a
+  couple of legible structural tripwires (a semantic class present, a column gone); don't
+  fake precision by measuring pixels.
 - Metadata is NATIVE Playwright, never invented comment tags: intent as a native tag
   (`tag: '@functional'` or `'@security'`) and a plain-English meaning as a native
   annotation (`annotation: { type: 'meaning', description: '...' }`) in the test's
