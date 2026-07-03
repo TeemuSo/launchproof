@@ -12,7 +12,9 @@ import { fileURLToPath } from 'node:url';
 
 const __dirname = path.dirname(fileURLToPath(import.meta.url));
 const ROOT = path.dirname(__dirname);
-const RUNS_DIR = path.join(ROOT, 'runs');
+// Honor the code/data split (README): runs live with the consuming project at
+// LAUNCHPROOF_DIR; fall back to ROOT for standalone use.
+const RUNS_DIR = path.join(process.env.LAUNCHPROOF_DIR || ROOT, 'runs');
 const VIEWER_DIR = __dirname;
 const PORT = process.env.PORT || 4321;
 
