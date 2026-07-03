@@ -1,0 +1,611 @@
+@import url('https://fonts.googleapis.com/css2?family=Special+Elite&family=JetBrains+Mono:wght@400;500;600;700&display=swap');
+
+:root {
+  --ink: #e8e3d5;
+  --ink-dim: #9b9585;
+  --paper-dark: #14130f;
+  --paper-darker: #0b0a08;
+  --paper-panel: #1b1914;
+  --line: #38352a;
+  --stamp-green: #6fbf73;
+  --stamp-green-dim: #2b3d2a;
+  --stamp-red: #d9695f;
+  --stamp-red-dim: #402424;
+  --stamp-amber: #d9a441;
+  --stamp-amber-dim: #40331c;
+  --accent: #c9a962;
+}
+
+* {
+  box-sizing: border-box;
+}
+
+html, body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  background: var(--paper-darker);
+  color: var(--ink);
+  font-family: 'JetBrains Mono', ui-monospace, monospace;
+}
+
+body {
+  background-image:
+    radial-gradient(ellipse at top left, rgba(201, 169, 98, 0.05), transparent 60%),
+    repeating-linear-gradient(180deg, rgba(255,255,255,0.012) 0px, rgba(255,255,255,0.012) 1px, transparent 1px, transparent 3px);
+}
+
+h1, h2, h3, .display {
+  font-family: 'Special Elite', 'Courier New', monospace;
+  letter-spacing: 0.03em;
+}
+
+.topbar {
+  display: flex;
+  align-items: baseline;
+  gap: 14px;
+  padding: 18px 24px;
+  border-bottom: 2px solid var(--line);
+  background: linear-gradient(180deg, var(--paper-panel), var(--paper-dark));
+}
+
+.topbar .mark {
+  font-family: 'Special Elite', monospace;
+  font-size: 22px;
+  color: var(--accent);
+}
+
+.topbar .subtitle {
+  color: var(--ink-dim);
+  font-size: 12px;
+  text-transform: uppercase;
+  letter-spacing: 0.14em;
+}
+
+.topbar .tagline {
+  margin-left: auto;
+  color: var(--ink-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.1em;
+  border: 1px dashed var(--line);
+  padding: 4px 10px;
+}
+
+.layout {
+  display: grid;
+  grid-template-columns: 300px 1fr;
+  height: calc(100vh - 68px);
+}
+
+/* ---------- rail ---------- */
+
+.rail {
+  border-right: 2px solid var(--line);
+  background: var(--paper-dark);
+  overflow-y: auto;
+  padding: 16px 12px;
+}
+
+.rail-header {
+  font-size: 11px;
+  color: var(--ink-dim);
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  margin: 4px 8px 12px;
+}
+
+.test-card {
+  border: 1px solid var(--line);
+  background: var(--paper-panel);
+  padding: 12px 12px;
+  margin-bottom: 10px;
+  cursor: pointer;
+  position: relative;
+  transition: border-color 0.12s ease, transform 0.08s ease;
+}
+
+.test-card:hover {
+  border-color: var(--accent);
+}
+
+.test-card.active {
+  border-color: var(--accent);
+  border-left-width: 4px;
+  background: #201d16;
+}
+
+.test-card .name {
+  font-size: 14px;
+  font-weight: 700;
+  color: var(--ink);
+  margin-bottom: 8px;
+  word-break: break-word;
+}
+
+.test-card .meta-row {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+}
+
+.pill {
+  display: inline-block;
+  font-size: 10px;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+  padding: 3px 8px;
+  border-radius: 2px;
+  border: 1px solid transparent;
+}
+
+.pill-working { color: var(--stamp-green); background: var(--stamp-green-dim); border-color: var(--stamp-green); }
+.pill-broken { color: var(--stamp-red); background: var(--stamp-red-dim); border-color: var(--stamp-red); }
+.pill-inconclusive { color: var(--stamp-amber); background: var(--stamp-amber-dim); border-color: var(--stamp-amber); }
+
+.timestamp {
+  color: var(--ink-dim);
+  font-size: 11px;
+}
+
+.rail-empty {
+  color: var(--ink-dim);
+  font-size: 12px;
+  padding: 12px 8px;
+  line-height: 1.6;
+}
+
+/* ---------- theater ---------- */
+
+.theater {
+  overflow-y: auto;
+  padding: 24px 32px 60px;
+}
+
+.theater-empty {
+  color: var(--ink-dim);
+  padding: 40px;
+  text-align: center;
+}
+
+.case-line {
+  color: var(--ink-dim);
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.12em;
+  margin-bottom: 10px;
+}
+
+.case-line span {
+  color: var(--accent);
+}
+
+.verdict-banner {
+  border: 2px solid;
+  padding: 18px 22px;
+  margin-bottom: 22px;
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 20px;
+  position: relative;
+  overflow: hidden;
+}
+
+.verdict-banner::before {
+  content: '';
+  position: absolute;
+  inset: 0;
+  opacity: 0.06;
+  background-image: repeating-linear-gradient(45deg, currentColor 0, currentColor 1px, transparent 1px, transparent 10px);
+  pointer-events: none;
+}
+
+.verdict-banner .verdict-label {
+  font-family: 'Special Elite', monospace;
+  font-size: 26px;
+  letter-spacing: 0.06em;
+}
+
+.verdict-banner .verdict-sub {
+  font-size: 12px;
+  color: var(--ink-dim);
+  margin-top: 4px;
+  text-transform: none;
+  letter-spacing: normal;
+}
+
+.verdict-banner .verdict-icon {
+  font-family: 'Special Elite', monospace;
+  font-size: 13px;
+  border: 2px solid currentColor;
+  padding: 8px 14px;
+  transform: rotate(-4deg);
+  letter-spacing: 0.1em;
+}
+
+.verdict-working { border-color: var(--stamp-green); color: var(--stamp-green); background: rgba(111,191,115,0.06); }
+.verdict-broken { border-color: var(--stamp-red); color: var(--stamp-red); background: rgba(217,105,95,0.06); }
+.verdict-inconclusive { border-color: var(--stamp-amber); color: var(--stamp-amber); background: rgba(217,164,65,0.06); }
+
+.video-frame {
+  border: 1px solid var(--line);
+  background: #000;
+  padding: 6px;
+  margin-bottom: 22px;
+}
+
+.video-frame video {
+  display: block;
+  width: 100%;
+  max-height: 480px;
+  background: #000;
+}
+
+.video-frame .no-video {
+  color: var(--ink-dim);
+  padding: 60px 20px;
+  text-align: center;
+  font-size: 13px;
+}
+
+.video-frame:has(+ .chapter-track) {
+  margin-bottom: 0;
+}
+
+.chapter-track {
+  position: relative;
+  height: 34px;
+  border: 1px solid var(--line);
+  border-top: none;
+  background: var(--paper-panel);
+  margin-bottom: 22px;
+  overflow: hidden;
+}
+
+.chapter-segment {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0;
+  width: 0;
+  display: flex;
+  align-items: center;
+  padding: 0 7px;
+  border-right: 1px solid var(--paper-darker);
+  cursor: pointer;
+  overflow: hidden;
+  transition: filter 0.12s ease;
+}
+
+.chapter-segment:hover {
+  filter: brightness(1.35);
+}
+
+.chapter-segment:last-child {
+  border-right: none;
+}
+
+.chapter-segment.status-passed { background: var(--stamp-green-dim); }
+.chapter-segment.status-failed { background: var(--stamp-red-dim); }
+.chapter-segment.status-skipped { background: var(--paper-dark); }
+
+.chapter-label {
+  font-size: 10px;
+  font-weight: 600;
+  text-transform: uppercase;
+  letter-spacing: 0.04em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.chapter-segment.status-passed .chapter-label { color: var(--stamp-green); }
+.chapter-segment.status-failed .chapter-label { color: var(--stamp-red); }
+.chapter-segment.status-skipped .chapter-label { color: var(--ink-dim); }
+
+/* The failing step needs to grab the eye first, not just wear the same red
+   fill every failed segment gets from its status color. */
+.chapter-segment.chapter-segment-failure {
+  box-shadow: inset 0 0 0 2px var(--stamp-red);
+  animation: chapter-failure-pulse 1.6s ease-in-out infinite;
+}
+
+@keyframes chapter-failure-pulse {
+  0%, 100% { box-shadow: inset 0 0 0 2px var(--stamp-red); }
+  50% { box-shadow: inset 0 0 0 2px rgba(217, 105, 95, 0.25); }
+}
+
+.chapter-segment.current {
+  filter: brightness(1.4);
+  box-shadow: inset 0 0 0 2px var(--accent);
+}
+
+.chapter-playhead {
+  position: absolute;
+  top: 0;
+  bottom: 0;
+  left: 0%;
+  width: 2px;
+  background: var(--accent);
+  pointer-events: none;
+  z-index: 2;
+}
+
+.step-row {
+  cursor: pointer;
+}
+
+.step-row.step-current {
+  border-color: var(--accent);
+  box-shadow: inset 0 0 0 1px var(--accent);
+}
+
+.section-title {
+  font-size: 11px;
+  text-transform: uppercase;
+  letter-spacing: 0.16em;
+  color: var(--ink-dim);
+  margin: 26px 0 12px;
+  border-bottom: 1px dashed var(--line);
+  padding-bottom: 6px;
+}
+
+.step-row {
+  display: flex;
+  align-items: flex-start;
+  gap: 12px;
+  padding: 10px 12px;
+  border: 1px solid var(--line);
+  margin-bottom: 8px;
+  background: var(--paper-panel);
+}
+
+.step-row.step-failed {
+  border-color: var(--stamp-red);
+  border-left-width: 4px;
+  background: rgba(217,105,95,0.05);
+}
+
+.step-row.step-skipped {
+  opacity: 0.55;
+}
+
+.step-icon {
+  font-weight: 700;
+  width: 20px;
+  text-align: center;
+  flex-shrink: 0;
+}
+
+.step-icon.passed { color: var(--stamp-green); }
+.step-icon.failed { color: var(--stamp-red); }
+.step-icon.skipped { color: var(--ink-dim); }
+
+.step-body {
+  flex: 1;
+  min-width: 0;
+}
+
+.step-name {
+  font-size: 13px;
+  font-weight: 600;
+}
+
+.step-status-tag {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  margin-left: 8px;
+  color: var(--ink-dim);
+}
+
+.step-error {
+  margin-top: 8px;
+  font-size: 11px;
+  color: var(--stamp-red);
+  white-space: pre-wrap;
+  background: var(--paper-darker);
+  border: 1px dashed var(--stamp-red);
+  padding: 8px 10px;
+  max-height: 160px;
+  overflow-y: auto;
+}
+
+.step-duration {
+  font-size: 11px;
+  color: var(--ink-dim);
+  flex-shrink: 0;
+}
+
+/* ---------- step disclosure (nested pw:api actions) ---------- */
+/* A step's captured sub-actions (click / fill / goto / etc, see
+   reporter.mjs's actions[]) render here as an indented, collapsed-by-
+   default list under the parent step -- visually subordinate: smaller
+   type, muted color, no new palette. */
+
+.step-chevron {
+  width: 14px;
+  flex-shrink: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  color: var(--ink-dim);
+  font-size: 10px;
+  margin-top: 2px;
+  transition: transform 0.12s ease, color 0.12s ease;
+}
+
+.step-chevron-empty {
+  visibility: hidden;
+}
+
+.step-row.expanded .step-chevron {
+  transform: rotate(90deg);
+  color: var(--accent);
+}
+
+.step-actions {
+  display: none;
+  margin-top: 8px;
+  padding-left: 14px;
+  border-left: 1px dashed var(--line);
+}
+
+.step-row.expanded .step-actions {
+  display: block;
+}
+
+.step-action-row {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  padding: 4px 6px;
+  font-size: 11px;
+  color: var(--ink-dim);
+  cursor: pointer;
+}
+
+.step-action-row:hover {
+  background: var(--paper-darker);
+  color: var(--ink);
+}
+
+/* Small dot for a plain action; a squared-off accent chip for navigation
+   (page.goto), so the two types read differently at a glance without a
+   new color. */
+.step-action-type {
+  width: 6px;
+  height: 6px;
+  flex-shrink: 0;
+  border-radius: 50%;
+  background: var(--ink-dim);
+}
+
+.step-action-type-navigation {
+  border-radius: 1px;
+  background: var(--accent);
+}
+
+.step-action-label {
+  flex: 1;
+  min-width: 0;
+  overflow: hidden;
+  text-overflow: ellipsis;
+  white-space: nowrap;
+}
+
+.step-action-time {
+  flex-shrink: 0;
+  font-size: 10px;
+  color: var(--ink-dim);
+}
+
+.evidence-strip {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 10px;
+  margin-top: 4px;
+}
+
+.evidence-thumb {
+  width: 140px;
+  border: 1px solid var(--line);
+  cursor: pointer;
+  background: var(--paper-panel);
+  transition: border-color 0.12s ease, box-shadow 0.12s ease;
+}
+
+/* Toggled by clicking (or scrubbing onto) the matching step's chapter
+   segment / step row / action row -- see revealEvidence()/setCurrentEvidence()
+   in app.js. Same accent used for .current/.step-current, so the "this is
+   the one you're looking at" language stays consistent everywhere. */
+.evidence-thumb.evidence-current {
+  border-color: var(--accent);
+  box-shadow: 0 0 0 2px var(--accent);
+}
+
+.evidence-thumb img {
+  width: 100%;
+  display: block;
+  border-bottom: 1px solid var(--line);
+}
+
+.evidence-thumb .thumb-label {
+  font-size: 9px;
+  color: var(--ink-dim);
+  padding: 5px 6px;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+.trace-box {
+  margin-top: 16px;
+  border: 1px dashed var(--line);
+  padding: 12px 14px;
+  font-size: 12px;
+  color: var(--ink-dim);
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  gap: 10px;
+}
+
+.trace-box a {
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px solid var(--accent);
+}
+
+.trace-hint {
+  background: var(--paper-darker);
+  border: 1px solid var(--line);
+  padding: 3px 8px;
+  color: var(--ink);
+  cursor: pointer;
+}
+
+.trace-hint:hover {
+  border-color: var(--accent);
+}
+
+/* ---------- lightbox ---------- */
+
+.lightbox {
+  position: fixed;
+  inset: 0;
+  background: rgba(5,4,3,0.92);
+  display: none;
+  align-items: center;
+  justify-content: center;
+  z-index: 50;
+  cursor: zoom-out;
+}
+
+.lightbox.open {
+  display: flex;
+}
+
+.lightbox img {
+  max-width: 90vw;
+  max-height: 88vh;
+  border: 2px solid var(--line);
+}
+
+::-webkit-scrollbar {
+  width: 10px;
+  height: 10px;
+}
+
+::-webkit-scrollbar-track {
+  background: var(--paper-darker);
+}
+
+::-webkit-scrollbar-thumb {
+  background: var(--line);
+}
