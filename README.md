@@ -1,65 +1,75 @@
 # LaunchProof
 
-Prove a web feature actually works. An AI (or you) writes a Playwright e2e test, this
-runs it in a real browser against your running app, and produces recorded proof: a
-seekable video, a per-step chapter timeline, and a **WORKING / BROKEN / INCONCLUSIVE**
-verdict. It closes the vibe-coding gap where an AI says "done" without ever opening the
-page. A **LaunchGuard** subproduct.
+**Prove a web feature actually works, before you say it's done.**
 
-## Free, because it runs on your machine
+Your AI coding agent says "done." But did it ever open the page? LaunchProof closes
+that gap: an AI (or you) writes a Playwright end-to-end test, LaunchProof runs it in a
+**real browser against your running app**, and hands you recorded proof:
 
-LaunchProof is the **free, local** lead-magnet for browser-level proof: Playwright runs in
-*your* browser on *your* machine, so it burns zero of LaunchGuard's browser-minutes. That
-is exactly what makes it free to give away — browser-level proof with no Browserbase cost to
-us. LaunchGuard's **hosted** browser e2e (the same real-browser proof, but run on our
-infrastructure and re-witnessed on every deploy) is the paid product (Pro). Same proof,
-different compute: local is yours and free; hosted is ours, metered, and remembered. See the
-workspace-root `MONETIZATION.md` for the full free/paid boundary.
+- a seekable **video** of every step,
+- a per-step **chapter timeline**, and
+- a plain **WORKING / BROKEN / INCONCLUSIVE** verdict.
 
-## Code vs data
+It runs **locally, on your machine, inside your dev loop** — right after a change, so you
+catch a broken flow before you ship it, not after a user does. Free, no signup, no account.
 
-This repo is the **shared harness** (code + deps). Each consuming project keeps only its
-own **data** — test specs and recorded runs — under `.launchproof/` in that repo. The
-harness, pointed at a project's data dir, drops a `node_modules` symlink into it so the
-project's specs resolve the one Playwright install (Playwright refuses to load twice). A
-consuming project therefore never runs `npm install`.
+LaunchProof is the free local companion to [LaunchGuard](https://launchguard.io), which
+checks your app's security from the outside.
 
-```
-launchproof/                 ← this repo (the harness, $LAUNCHPROOF_HOME)
-├── run.mjs · playwright.config.ts · reporter.mjs · viewer/
-├── tests/example.spec.ts    ← copy-me template + helpers/
-└── skills/launchproof/      ← the Claude Code skill
+## Why it exists
 
-<consuming-project>/.launchproof/
-├── tests/<feature>.spec.ts  ← the project's own specs (tracked)
-├── runs/                     ← recordings (gitignored)
-└── node_modules -> $LAUNCHPROOF_HOME/node_modules   (symlink, gitignored)
-```
+AI writes code fast, and it will confidently tell you a feature works when it has never
+watched it run. A green build and a passing type-check don't prove the button does
+anything. LaunchProof is the missing step: **drive the real UI in a real browser and
+record what actually happens**, so "it works" means you watched it work.
 
-## Setup
+## Install
 
-```bash
-git clone https://github.com/TeemuSo/launchproof ~/Projects/launchproof
-cd ~/Projects/launchproof && npm install     # once per machine
-export LAUNCHPROOF_HOME=~/Projects/launchproof
-```
-Update later with `git -C "$LAUNCHPROOF_HOME" pull` — every consuming project instantly
-uses the new harness; their tests and runs are untouched.
-
-Or install it as a **Claude Code plugin** — agents in your project gain the `launchproof`
-skill, and the plugin install serves as the harness (`npm install` runs on first use):
+Install it as a **Claude Code plugin** — every agent in your project gains the
+`launchproof` skill, and the plugin doubles as the test harness (dependencies install on
+first use):
 
 ```
 /plugin marketplace add TeemuSo/launchproof
 /plugin install launchproof@launchproof
 ```
 
-You can also just tell Claude Code: *"install the launchproof plugin from TeemuSo/launchproof"*.
+You can also just tell Claude Code: *"install the launchproof plugin from
+TeemuSo/launchproof."*
+
+Prefer a plain checkout? Clone it and point an env var at it:
+
+```bash
+git clone https://github.com/TeemuSo/launchproof ~/Projects/launchproof
+cd ~/Projects/launchproof && npm install     # once per machine
+export LAUNCHPROOF_HOME=~/Projects/launchproof
+```
+
+Update later with `git -C "$LAUNCHPROOF_HOME" pull` — every project you use it in picks up
+the new version instantly; your tests and recordings are untouched.
+
+## How it's laid out
+
+LaunchProof is a shared harness (the runner + browser deps). Each project you use it in
+keeps only its **own** tests and recordings, under a `.launchproof/` folder in that
+project — so you never re-install browsers per project.
+
+```
+launchproof/                 ← the harness (installed once)
+├── run.mjs · playwright.config.ts · reporter.mjs · viewer/
+├── tests/example.spec.ts    ← copy-me template + helpers/
+└── skills/launchproof/      ← the Claude Code skill
+
+<your-project>/.launchproof/
+├── tests/<feature>.spec.ts  ← your project's tests (commit these)
+├── runs/                     ← recordings (gitignored)
+└── node_modules -> harness   ← symlink so tests resolve one Playwright install
+```
 
 ## Run
 
 ```bash
-# from a consuming project, with its app already running:
+# from your project, with the app already running locally:
 LAUNCHPROOF_DIR="$PWD/.launchproof" TARGET_URL=http://localhost:PORT \
   node "$LAUNCHPROOF_HOME/run.mjs" <feature>
 
@@ -67,27 +77,20 @@ LAUNCHPROOF_DIR="$PWD/.launchproof" TARGET_URL=http://localhost:PORT \
 LAUNCHPROOF_DIR="$PWD/.launchproof" node "$LAUNCHPROOF_HOME/viewer/serve.js"   # http://localhost:4321
 ```
 
-`node run.mjs <name>` runs `<data>/tests/<name>.spec.ts` and prints a verdict: WORKING
-(all gates passed), BROKEN (a real assertion failed), or INCONCLUSIVE (timeout / target
-down). Review mode dwells 350ms per action so nothing blows by on video; `LP_SLOWMO=0`
-disables it.
-
-## Post-run webhook
-
-Set `LAUNCHPROOF_WEBHOOK` to a URL and each run POSTs `{ runId, test, verdict, target }`
-on completion; merge extra fields with `LAUNCHPROOF_WEBHOOK_EXTRA='{"...":"..."}'`. This
-lets a system auto-receive a verdict (e.g. VUORO attaches proof to an issue via
-`/api/proof` with an `issueId`).
+`node run.mjs <name>` runs `<data>/tests/<name>.spec.ts` and prints a verdict: **WORKING**
+(every gate passed), **BROKEN** (a real assertion failed), or **INCONCLUSIVE** (timeout, or
+the app wasn't reachable). Review mode dwells 350ms per action so nothing blows by on the
+video; set `LP_SLOWMO=0` to disable it.
 
 ## Writing tests
 
-Copy `tests/example.spec.ts` — a commented best-practice template. Role-based user-facing
-locators; awaited web-first assertions; no hard waits; drive the real UI; two named
-`recordedStep()` gates; assert the real value, never a placeholder. See
+Copy `tests/example.spec.ts` — a commented, best-practice template. Use role-based,
+user-facing locators; awaited web-first assertions; no hard waits; drive the real UI; two
+named `recordedStep()` gates; and assert the **real** value, never a placeholder. See
 `skills/launchproof/SKILL.md` for the full checklist.
 
-Test metadata is **native Playwright**, not bespoke comments: declare intent as a native
-tag and the plain-English meaning as a native annotation in the test's details object —
+Test metadata is **native Playwright**, not bespoke comments: declare intent as a tag and
+the plain-English meaning as an annotation in the test's details object —
 
 ```ts
 test('returning visitor lands on the new hub', {
@@ -101,12 +104,23 @@ test('returning visitor lands on the new hub', {
 
 Both flow through Playwright's JSON reporter into `result.json`. The dashboard renders the
 failing assertion (matcher / expected / got) as first-class "Success conditions" and the
-annotation as "What this means". The legacy `// @intent:` comment still works as a
-fallback for pre-native specs.
+annotation as "What this means." The legacy `// @intent:` comment still works as a fallback
+for older specs.
+
+## Post-run webhook
+
+Set `LAUNCHPROOF_WEBHOOK` to a URL and each run POSTs `{ runId, test, verdict, target }` on
+completion; merge extra fields with `LAUNCHPROOF_WEBHOOK_EXTRA='{"...":"..."}'`. Handy for
+wiring a verdict into your own tooling (attach proof to an issue, gate a deploy, ping a
+channel).
 
 ## Requirements
 
-- Node 18+ and Playwright's chromium (`npx playwright install chromium` if the shared
-  cache is missing it).
-- ffmpeg for seekable video (`brew install ffmpeg`); without it playback works but
+- Node 18+ and Playwright's chromium (`npx playwright install chromium` if the shared cache
+  is missing it).
+- ffmpeg for seekable video (`brew install ffmpeg`); without it playback still works, but
   scrubbing does not.
+
+## License
+
+See [LICENSE](./LICENSE).
