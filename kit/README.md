@@ -40,6 +40,7 @@ required; without it, state your proof (or "docs-only") in the PR body.
 | `.github/workflows/claude-code-review.yml` | Automated review on every PR. ALWAYS posts one "## Automated review" summary comment (plus inline comments on specific issues). Skips with a notice when no credential secret is set. |
 | `.github/workflows/issue-autoclose.yml` | GitHub only honors `Closes #N` for merges into the DEFAULT branch. This restores it for merges into any other branch (for example `dev`), and stays silent on default-branch merges so nothing double-fires. |
 | `kit/post-proof.sh` | Posts a LaunchProof run's verdict (WORKING / BROKEN / INCONCLUSIVE), per-step table, and evidence location into a PR as a comment, from the run's `result.json`. |
+| `kit/selftest.sh` | End-to-end self-test: point it at a fresh empty repo (`gh repo create x --private`, then `bash kit/selftest.sh OWNER/x`) and it drives the whole loop above, printing the real evidence for every leg (comment URLs and bodies, issue close events, run conclusions). Legs it cannot witness (no credential, no LaunchProof) are reported SKIP, never faked. |
 
 ## Installer behavior
 
