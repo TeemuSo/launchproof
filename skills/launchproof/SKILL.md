@@ -53,9 +53,10 @@ shared cache is missing it.
    user-facing locators; follow the checklist. Test the EXACT page and flow the user
    named — never a synthetic reconstruction of it on a different page; if the user says
    "the demo site", the spec opens the demo site.
-   **One `test()` per file** — LaunchProof records one test per run, so only the first is
-   captured; a second is dropped with a warning (a `test.describe` around a single test is
-   fine). Split scenarios into separate `<feature>-<case>.spec.ts` files. Behind a login?
+   **One `test()` per file** — LaunchProof records one test per run, and `run.mjs` REFUSES
+   a multi-test file at spec load with a hard error, running nothing (a `test.describe`
+   around a single test is fine). One name means one verdict and one recording. Split
+   scenarios into separate `<feature>-<case>.spec.ts` files. Behind a login?
    Load a captured session with `test.use({ storageState })`, file kept in `.launchproof/auth/`.
 
 3. **Run it** from the project root:

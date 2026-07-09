@@ -1,8 +1,8 @@
 // COPY ME. This is the starting pattern for a LaunchProof test. Duplicate this
 // file to tests/<your-feature>.spec.ts and edit the two gates for your feature.
-// ONE test() per file -- only the first test is recorded (a second is dropped
-// with a warning; a describe around a single test is fine). Split scenarios
-// into separate <feature>-<case>.spec.ts files.
+// ONE test() per file -- run.mjs REFUSES a multi-test file at spec load (a
+// describe around a single test is fine). One name -> one verdict -> one
+// recording. Split scenarios into separate <feature>-<case>.spec.ts files.
 //
 // RULES this file follows (keep them -- they kill flakiness and fake passes):
 //   1. LOCATORS: user-facing, role-based, in priority order getByRole ->

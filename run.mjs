@@ -86,6 +86,14 @@ function main() {
   // therefore needs no install of its own; it holds only specs and runs.
   if (DATA_DIR !== ROOT) linkNodeModules(DATA_DIR);
 
+  // 0. Refuse multi-test spec files BEFORE running anything. LaunchProof's
+  // contract is one name -> one test -> one verdict -> one recording (that's
+  // what makes `node run.mjs <name>` re-runnable and the dashboard's single
+  // verdict honest). A file with several test() blocks used to record only
+  // the first with a stderr warning -- silent partial recording. Now it's a
+  // hard, loud failure at spec load: nothing runs until the file is split.
+  rejectMultiTestSpec(specAbsPath, testName);
+
   // 1. Run the spec. Let it fail (non-zero exit) without throwing -- a
   // failing/timing-out test is an expected, useful outcome we still want
   // to capture and render, not a script error.
@@ -114,11 +122,19 @@ function main() {
     return;
   }
   if (results.length > 1) {
-    console.error(
-      `launchproof: this spec file has ${results.length} tests; LaunchProof records ONE per file. ` +
-        `Recording only the first ("${results[0].spec.title}"). Split the rest into separate ` +
-        `<feature>-<case>.spec.ts files so each gets its own verdict and recording.`,
+    // Belt-and-braces behind rejectMultiTestSpec: catches tests the static
+    // --list pre-check could not see (e.g. generated in a loop after load).
+    // NEVER record a partial run -- that would be a recording that silently
+    // dropped tests, which is exactly the failure mode this guard kills.
+    const titles = results.map((r, i) => `  ${i + 1}. ${r.spec.title}`).join('\n');
+    writeInconclusiveRun(
+      testName,
+      `Spec file produced ${results.length} tests; LaunchProof records exactly ONE test per spec file ` +
+        `(one name -> one verdict -> one recording). Nothing was recorded. Tests found:\n${titles}\n` +
+        `Split each into its own tests/<feature>-<case>.spec.ts and run them separately.`,
     );
+    process.exitCode = 1;
+    return;
   }
   const { spec, testResult } = results[0];
 
@@ -362,12 +378,52 @@ function isAssertionFailure(message) {
   return /^Error:\s*expect\(/i.test(message.trim()) || /AssertionError/i.test(message);
 }
 
+// Fails LOUDLY, at spec load, when a spec file declares more than one test().
+// LaunchProof records exactly ONE test per spec file: the CLI is addressed by
+// name (`node run.mjs <name>` -> tests/<name>.spec.ts), and one name must mean
+// one verdict and one recording -- a second test in the same file would be
+// unreachable by name and used to be dropped with only a stderr warning
+// (silent partial recording). Detection asks Playwright itself via
+// `--list --reporter=json` (same config, same resolution as the real run), so
+// describes, .only/.skip modifiers, and parameterized titles are all counted
+// exactly as they would execute. If the listing itself fails, the real run
+// proceeds and the post-run results.length guard catches any excess.
+function rejectMultiTestSpec(specAbsPath, testName) {
+  const proc = spawnSync(
+    'npx',
+    ['playwright', 'test', specAbsPath, '--config', CONFIG_PATH, '--list', '--reporter=json'],
+    { cwd: DATA_DIR, encoding: 'utf8', env: process.env },
+  );
+  if (!proc.stdout) return; // listing unavailable; post-run guard still applies
+  let listed;
+  try {
+    listed = JSON.parse(proc.stdout);
+  } catch {
+    return; // not JSON (older Playwright / unexpected output); post-run guard still applies
+  }
+  const titles = [];
+  const walk = (suite) => {
+    for (const spec of suite.specs || []) titles.push(spec.title);
+    for (const child of suite.suites || []) walk(child);
+  };
+  for (const suite of listed.suites || []) walk(suite);
+  if (titles.length <= 1) return;
+
+  console.error(
+    `\nlaunchproof: tests/${testName}.spec.ts declares ${titles.length} tests -- LaunchProof records ` +
+      `exactly ONE test per spec file (one name -> one verdict -> one recording, re-runnable by name).\n` +
+      titles.map((t, i) => `  ${i + 1}. ${t}`).join('\n') +
+      `\nSplit each test into its own tests/<feature>-<case>.spec.ts and run them separately. Nothing was run.`,
+  );
+  process.exit(1);
+}
+
 // Collect every (spec, testResult) pair in the report, recursing into nested
 // suites so a test.describe() block is seen (Playwright nests its specs under
 // suite.suites). LaunchProof records ONE test per run — result.json and the
-// dashboard model a single test with its gates — so main() records the first
-// pair and warns when there are more, degrading a stray describe or second
-// test to a clear, actionable message instead of a silent INCONCLUSIVE.
+// dashboard model a single test with its gates. main() hard-fails when a
+// report somehow contains more than one result (see the results.length guard);
+// rejectMultiTestSpec() should have refused the spec before it even ran.
 function collectResults(report) {
   const out = [];
   const walk = (suite) => {
