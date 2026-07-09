@@ -6,13 +6,17 @@
 # Copies into the target repo:
 #   .github/ISSUE_TEMPLATE/{task,bug,config}.yml   issue forms
 #   .github/pull_request_template.md               PR template with proof section
-#   .github/workflows/claude-code-review.yml       automated review on PRs
+#   .github/workflows/claude-code-review.yml       automated review that posts on PRs
 #   .github/workflows/issue-autoclose.yml          "Closes #N" works on non-default branches
 #
-# Existing files are SKIPPED unless --force is given, so a repo that already
-# has its own review workflow keeps it. The kit is repo-agnostic: nothing in
-# the copied files references a specific repo, branch name, or directory
-# layout, so the same install works for a single-service repo or a monorepo.
+# Also makes sure the 'task' and 'bug' labels exist (GitHub seeds fresh repos
+# with 'bug' but NOT 'task').
+#
+# Safe to re-run: existing files are SKIPPED unless --force is given, so a
+# repo that already has its own review workflow keeps it. The kit is
+# repo-agnostic: nothing in the copied files references a specific repo,
+# branch name, or directory layout, so the same install works for a
+# single-service repo or a monorepo.
 #
 # After installing: commit, push, and read the follow-ups this script prints.
 
@@ -26,12 +30,12 @@ FORCE=0
 for arg in "$@"; do
   case "$arg" in
     --force) FORCE=1 ;;
-    -h|--help) sed -n '2,20p' "${BASH_SOURCE[0]}"; exit 0 ;;
+    -h|--help) sed -n '2,22p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *) TARGET="$arg" ;;
   esac
 done
 
-if [ ! -d "$TARGET/.git" ] && ! git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1; then
+if ! git -C "$TARGET" rev-parse --git-dir >/dev/null 2>&1; then
   echo "error: $TARGET is not a git repository" >&2
   exit 1
 fi
@@ -53,27 +57,66 @@ while IFS= read -r src; do
   installed=$((installed + 1))
 done < <(find "$TEMPLATE_DIR" -type f | sort)
 
-# Best-effort: make sure the labels the issue forms apply actually exist.
+# Labels the issue forms apply. GitHub seeds new repos with 'bug' but not
+# 'task'; check first so the output tells the truth instead of hiding errors.
+HAVE_GH=0
 if command -v gh >/dev/null 2>&1 && git -C "$TARGET" remote get-url origin >/dev/null 2>&1; then
-  (cd "$TARGET" \
-    && gh label create task --description "Unit of work" --color 0e8a16 2>/dev/null \
-    && echo "LABEL   task created" || true)
-  (cd "$TARGET" \
-    && gh label create bug --description "Something is broken" --color d73a4a 2>/dev/null \
-    && echo "LABEL   bug created" || true)
+  HAVE_GH=1
+  existing_labels="$( (cd "$TARGET" && gh label list --limit 100 --json name --jq '.[].name') 2>/dev/null || echo "__gh_label_list_failed__")"
+  if [ "$existing_labels" = "__gh_label_list_failed__" ]; then
+    echo "NOTE    could not list labels (gh not authenticated, or repo not on GitHub yet);"
+    echo "        create 'task' and 'bug' labels yourself."
+  else
+    for label in task bug; do
+      if printf '%s\n' "$existing_labels" | grep -qx "$label"; then
+        echo "LABEL   $label already exists"
+      else
+        case "$label" in
+          task) desc="Unit of work"; color=0e8a16 ;;
+          bug)  desc="Something is broken"; color=d73a4a ;;
+        esac
+        if (cd "$TARGET" && gh label create "$label" --description "$desc" --color "$color" >/dev/null 2>&1); then
+          echo "LABEL   $label created"
+        else
+          echo "NOTE    could not create label '$label'; create it yourself."
+        fi
+      fi
+    done
+  fi
 else
   echo "NOTE    gh not available or no origin remote; create 'task' and 'bug' labels yourself."
 fi
+
+# Default-branch awareness: issue forms and the PR template only render in
+# GitHub's UI once they exist on the DEFAULT branch.
+DEFAULT_BRANCH=""
+if [ "$HAVE_GH" -eq 1 ]; then
+  DEFAULT_BRANCH="$( (cd "$TARGET" && gh repo view --json defaultBranchRef --jq '.defaultBranchRef.name') 2>/dev/null || true)"
+fi
+CURRENT_BRANCH="$(git -C "$TARGET" branch --show-current 2>/dev/null || true)"
 
 echo
 echo "Done: $installed installed, $skipped skipped."
 echo
 echo "Follow-ups:"
 echo "  1. Commit and push the new .github files on your working branch."
-echo "  2. Automated review needs the CLAUDE_CODE_OAUTH_TOKEN repo secret:"
-echo "       claude setup-token   # then: gh secret set CLAUDE_CODE_OAUTH_TOKEN"
-echo "     Until it is set, the review job skips with a notice (it does not fail)."
-echo "  3. GitHub shows issue templates in the new-issue UI only once they reach"
-echo "     the repo's DEFAULT branch. Until then, open issues with"
-echo "     'gh issue create' using the same fields."
-echo "  4. Post LaunchProof verdicts into PRs with kit/post-proof.sh (see its header)."
+if [ -n "$DEFAULT_BRANCH" ] && [ "$CURRENT_BRANCH" = "$DEFAULT_BRANCH" ]; then
+  echo "     You are on the default branch ($DEFAULT_BRANCH): issue forms and the PR"
+  echo "     template go live in GitHub's UI as soon as this lands."
+elif [ -n "$DEFAULT_BRANCH" ]; then
+  echo "     You are on '$CURRENT_BRANCH' but the default branch is '$DEFAULT_BRANCH':"
+  echo "     GitHub shows issue forms and the PR template in its UI only from the"
+  echo "     DEFAULT branch. Until this reaches '$DEFAULT_BRANCH', open issues with"
+  echo "     'gh issue create' using the same fields."
+else
+  echo "     GitHub shows issue forms and the PR template only once they reach the"
+  echo "     repo's DEFAULT branch. Until then, open issues with 'gh issue create'."
+fi
+echo "  2. Automated review needs ONE repo secret (skips with a notice until set):"
+echo "       claude setup-token && gh secret set CLAUDE_CODE_OAUTH_TOKEN   # Pro/Max"
+echo "     or"
+echo "       gh secret set ANTHROPIC_API_KEY                               # Console key"
+echo "     Posting uses the Claude GitHub App (one-time: https://github.com/apps/claude)."
+echo "  3. Optional: LaunchProof. If this repo has LaunchProof tests, post run"
+echo "     verdicts into PRs with kit/post-proof.sh (see its header). If not, the"
+echo "     loop still works: state \"docs-only\" or your own proof in the PR body."

@@ -23,8 +23,10 @@ REPO_FLAG=()
 
 while [ $# -gt 0 ]; do
   case "$1" in
-    --proof-url) PROOF_URL="$2"; shift 2 ;;
-    --repo) REPO_FLAG=(-R "$2"); shift 2 ;;
+    --proof-url) [ $# -ge 2 ] || { echo "error: --proof-url needs a value" >&2; exit 1; }
+                 PROOF_URL="$2"; shift 2 ;;
+    --repo)      [ $# -ge 2 ] || { echo "error: --repo needs a value (OWNER/NAME)" >&2; exit 1; }
+                 REPO_FLAG=(-R "$2"); shift 2 ;;
     -h|--help) sed -n '2,17p' "${BASH_SOURCE[0]}"; exit 0 ;;
     *)
       if [ -z "$PR" ]; then PR="$1"
@@ -39,8 +41,13 @@ if [ -z "$PR" ] || [ -z "$RUN_DIR" ]; then
   echo "usage: post-proof.sh <pr-number> <run-dir> [--proof-url URL] [--repo OWNER/NAME]" >&2
   exit 1
 fi
+for dep in gh python3; do
+  command -v "$dep" >/dev/null 2>&1 || { echo "error: '$dep' is required but not on PATH" >&2; exit 1; }
+done
 if [ ! -f "$RUN_DIR/result.json" ]; then
   echo "error: $RUN_DIR/result.json not found (is this a LaunchProof run directory?)" >&2
+  echo "hint: run the LaunchProof test first; if this repo has no LaunchProof setup," >&2
+  echo "      state your proof (or \"docs-only\") in the PR body instead." >&2
   exit 1
 fi
 
