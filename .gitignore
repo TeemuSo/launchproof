@@ -1,5 +1,8 @@
 node_modules/
 runs/
+acceptance/runs/
+acceptance/tests/helpers/
+acceptance/node_modules
 test-results/
 playwright-report/
 .env

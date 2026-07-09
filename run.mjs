@@ -141,12 +141,22 @@ function main() {
   const stepCount = Math.max(reportedSteps.length, declaredStepNames.length);
 
   const testResultDir = locateTestResultDir(testResult);
-  const shotFiles = testResultDir ? findShotFiles(testResultDir) : [];
+  // Per-step evidence, each numbered in step order by shot.ts so they pair up
+  // by index: shot-NN (screenshot), dom-NN (serialized DOM), state-NN
+  // (cookies + localStorage). The DOM lets an agent grep what the page truly
+  // contained; the state lets a browser be resumed back into that step.
+  const shotFiles = testResultDir ? findEvidenceFiles(testResultDir, 'shot', 'png') : [];
+  const domFiles = testResultDir ? findEvidenceFiles(testResultDir, 'dom', 'html') : [];
+  const stateFiles = testResultDir ? findEvidenceFiles(testResultDir, 'state', 'json') : [];
 
   const runId = buildRunId(startedAt, testName);
   const runDir = path.join(RUNS_DIR, runId);
   const shotsDir = path.join(runDir, 'shots');
+  const domDir = path.join(runDir, 'dom');
+  const stateDir = path.join(runDir, 'state');
   mkdirSync(shotsDir, { recursive: true });
+  mkdirSync(domDir, { recursive: true });
+  mkdirSync(stateDir, { recursive: true });
 
   const steps = [];
   for (let i = 0; i < stepCount; i++) {
@@ -170,12 +180,34 @@ function main() {
       status = 'skipped';
     }
 
+    const numPrefix = String(i).padStart(2, '0');
+
     let shotRelPath = null;
     const sourceShot = shotFiles[i];
     if (sourceShot) {
-      const destName = `${String(i).padStart(2, '0')}-${slug}.png`;
+      const destName = `${numPrefix}-${slug}.png`;
       copyFileSync(sourceShot, path.join(shotsDir, destName));
       shotRelPath = `shots/${destName}`;
+    }
+
+    // DOM + storage state are paired to the shot by the same step index. A
+    // step whose capture failed (page/context already closed on a hard error)
+    // simply has no file at this index and gets null — the same graceful
+    // absence the shot field already models.
+    let domRelPath = null;
+    const sourceDom = domFiles[i];
+    if (sourceDom) {
+      const destName = `${numPrefix}-${slug}.html`;
+      copyFileSync(sourceDom, path.join(domDir, destName));
+      domRelPath = `dom/${destName}`;
+    }
+
+    let stateRelPath = null;
+    const sourceState = stateFiles[i];
+    if (sourceState) {
+      const destName = `${numPrefix}-${slug}.json`;
+      copyFileSync(sourceState, path.join(stateDir, destName));
+      stateRelPath = `state/${destName}`;
     }
 
     steps.push({
@@ -185,6 +217,8 @@ function main() {
       durationMs: durationMsStep,
       error,
       shot: shotRelPath,
+      dom: domRelPath,
+      state: stateRelPath,
     });
   }
 
@@ -415,10 +449,15 @@ function transcodeToSeekableMp4(webmAbsPath, mp4AbsPath) {
   return path.basename(mp4AbsPath);
 }
 
-function findShotFiles(testResultDir) {
+// Finds shot.ts's per-step evidence files of one kind (shot/dom/state),
+// numbered `<kind>-NN-<slug>.<ext>`, returned sorted so array index === step
+// index. All three kinds share the same numbering, which is what lets run.mjs
+// pair a step's screenshot, DOM, and storage state by position.
+function findEvidenceFiles(testResultDir, kind, ext) {
   if (!existsSync(testResultDir)) return [];
+  const re = new RegExp(`^${kind}-\\d+-.*\\.${ext}$`);
   return readdirSync(testResultDir)
-    .filter((f) => /^shot-\d+-.*\.png$/.test(f))
+    .filter((f) => re.test(f))
     .sort()
     .map((f) => path.join(testResultDir, f));
 }

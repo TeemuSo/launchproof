@@ -192,6 +192,7 @@ function renderChapterTrack(run, hasVideo) {
     <div class="chapter-track" id="chapter-track">
       <div class="chapter-playhead"></div>
       ${segmentsHtml}
+      <div class="chapter-speed" id="chapter-speed" hidden></div>
     </div>
   `;
 }
@@ -250,20 +251,46 @@ function setupChapterTrack(run) {
     return typeof step.startMs === 'number' ? step.startMs : fallback;
   });
 
-  // Segment boundaries used for BOTH layout and "which one is current"
-  // detection, clamped to the video's real duration so a step whose
-  // cumulative start overruns the actual recording (setup/teardown
-  // overhead the video didn't capture) still lands somewhere sane instead
-  // of off the end of the track.
+  // Compresses a step's real wall-clock duration into the width it gets on
+  // the timeline. A test's setup/login step can be 10x longer than every
+  // real assertion combined (e.g. a 22s "open the dialog" step next to five
+  // sub-second checks) -- laid out proportionally it eats the whole track
+  // and buries the steps a reviewer actually came to see. So durations up to
+  // REF_MS pass through 1:1, and only the excess is squeezed to a fraction.
+  // The video is untouched; this is purely how the timeline apportions space
+  // (and, via the same ratio, how fast playback fast-forwards -- see
+  // applyPlaybackRate).
+  const REF_MS = 2500;
+  const EXCESS_SCALE = 0.12;
+  function displayDurOf(realMs) {
+    const d = Math.max(realMs, 0);
+    return d <= REF_MS ? d : REF_MS + (d - REF_MS) * EXCESS_SCALE;
+  }
+
+  // Segment boundaries used for layout, "which one is current" detection,
+  // playhead position, and playback speed. `start`/`next` are REAL video-time
+  // offsets (ms), clamped to the video's real duration so a step whose
+  // cumulative start overruns the actual recording (setup/teardown overhead
+  // the video didn't capture) still lands somewhere sane instead of off the
+  // end of the track. `dispStart`/`dispNext` are the same segment's position
+  // on the COMPRESSED display axis (see displayDurOf); `totalDisplay` is the
+  // full compressed length everything is laid out as a fraction of.
   function computeBoundaries() {
     const durationMs = video.duration * 1000;
-    return steps.map((step, i) => {
+    const real = steps.map((_step, i) => {
       const rawStart = startMsByIndex[i];
       const rawNext = i < steps.length - 1 ? startMsByIndex[i + 1] : durationMs;
       const start = Math.min(rawStart, durationMs);
       const next = Math.min(Math.max(rawNext, start), durationMs);
       return { start, next };
     });
+    let disp = 0;
+    const boundaries = real.map((b) => {
+      const dispStart = disp;
+      disp += displayDurOf(b.next - b.start);
+      return { start: b.start, next: b.next, dispStart, dispNext: disp };
+    });
+    return { boundaries, totalDisplay: disp || 1 };
   }
 
   // Minimum on-screen width for a clickable chapter segment: whichever is
@@ -280,13 +307,12 @@ function setupChapterTrack(run) {
 
   function layout() {
     if (!isFinite(video.duration) || video.duration <= 0) return;
-    const durationMs = video.duration * 1000;
-    const boundaries = computeBoundaries();
+    const { boundaries, totalDisplay } = computeBoundaries();
     const minWidthPct = minSegmentWidthPct();
     segments.forEach((seg, i) => {
-      const { start, next } = boundaries[i];
-      const leftPct = (start / durationMs) * 100;
-      const widthPct = Math.max(((next - start) / durationMs) * 100, minWidthPct);
+      const { dispStart, dispNext } = boundaries[i];
+      const leftPct = (dispStart / totalDisplay) * 100;
+      const widthPct = Math.max(((dispNext - dispStart) / totalDisplay) * 100, minWidthPct);
       seg.style.left = `${leftPct}%`;
       seg.style.width = `${widthPct}%`;
     });
@@ -335,10 +361,16 @@ function setupChapterTrack(run) {
   let expandedIndex = -1;
   let previousCurrentIndex = -1;
 
+  // Clicking a timeline chapter keeps the reviewer ON the timeline: it
+  // seeks+pauses the video to that step's frame and highlights the matching
+  // evidence thumb, but deliberately does NOT scroll the thumb into view
+  // (unlike a step-row click). The whole point of the timeline is to click
+  // around and watch the video without the page jumping to the filmstrip at
+  // the bottom every time.
   segments.forEach((seg, i) => {
     seg.addEventListener('click', () => {
       seekAndPause(startMsByIndex[i]);
-      revealEvidence(i);
+      setCurrentEvidence(i);
     });
   });
 
@@ -370,10 +402,42 @@ function setupChapterTrack(run) {
     });
   });
 
+  // Speeds the video through long waiting stretches so a reviewer isn't
+  // stuck watching a 22s login play in real time. Playback rate for the
+  // current segment is exactly its compression ratio (real / displayed
+  // duration, capped at 8x), so the playhead crosses the timeline at a
+  // roughly even visual pace regardless of how much real time each step
+  // burned. Only touched on an actual rate change, and reset to 1x whenever
+  // playback leaves a segment, so short assertion steps always play 1:1.
+  const speedBadge = track.querySelector('#chapter-speed');
+  let lastRate = 1;
+  function applyPlaybackRate(currentIndex, boundaries) {
+    let rate = 1;
+    if (currentIndex >= 0) {
+      const b = boundaries[currentIndex];
+      const realDur = b.next - b.start;
+      const dispDur = b.dispNext - b.dispStart;
+      if (dispDur > 0) rate = Math.min(Math.max(realDur / dispDur, 1), 8);
+      rate = Math.round(rate * 10) / 10;
+    }
+    if (rate !== lastRate) {
+      lastRate = rate;
+      video.playbackRate = rate;
+      if (speedBadge) {
+        if (rate > 1) {
+          speedBadge.textContent = `▶▶ ${rate}× fast-forward`;
+          speedBadge.hidden = false;
+        } else {
+          speedBadge.hidden = true;
+        }
+      }
+    }
+  }
+
   function highlightCurrent() {
     if (!isFinite(video.duration) || video.duration <= 0) return;
     const currentMs = video.currentTime * 1000;
-    const boundaries = computeBoundaries();
+    const { boundaries, totalDisplay } = computeBoundaries();
     let currentIndex = -1;
     segments.forEach((seg, i) => {
       const { start, next } = boundaries[i];
@@ -399,9 +463,20 @@ function setupChapterTrack(run) {
     }
 
     if (playhead) {
-      const pct = Math.min(Math.max((currentMs / (video.duration * 1000)) * 100, 0), 100);
+      let dispPos;
+      if (currentIndex >= 0) {
+        const b = boundaries[currentIndex];
+        const span = b.next - b.start;
+        const frac = span > 0 ? Math.min(Math.max((currentMs - b.start) / span, 0), 1) : 0;
+        dispPos = b.dispStart + frac * (b.dispNext - b.dispStart);
+      } else {
+        dispPos = currentMs <= 0 ? 0 : totalDisplay;
+      }
+      const pct = Math.min(Math.max((dispPos / totalDisplay) * 100, 0), 100);
       playhead.style.left = `${pct}%`;
     }
+
+    applyPlaybackRate(currentIndex, boundaries);
   }
 
   if (video.readyState >= 1) {
@@ -547,6 +622,21 @@ function renderStep(runId, step) {
         </div>
       `).join('')}</div>`
     : '';
+
+  // Per-step captured evidence beyond the screenshot: the serialized DOM
+  // (what the page actually contained) and the storage state (cookies +
+  // localStorage — the resumable auth). Each opens the raw file the static
+  // server already serves, so you can SEE exactly what was captured at this
+  // step. Absent (null) on steps whose capture failed — the link is simply
+  // omitted, never a dead href.
+  const base = `/runs/${encodeURIComponent(runId)}/`;
+  const evLinks = [];
+  if (step.dom) evLinks.push(`<a class="step-evidence-link" href="${base}${step.dom}" target="_blank" rel="noopener">DOM</a>`);
+  if (step.state) evLinks.push(`<a class="step-evidence-link" href="${base}${step.state}" target="_blank" rel="noopener">auth state</a>`);
+  const evidenceHtml = evLinks.length
+    ? `<div class="step-evidence">${evLinks.join('')}</div>`
+    : '';
+
   return `
     <div class="step-row ${rowClass}" data-index="${step.index}">
       ${chevronHtml}
@@ -554,6 +644,7 @@ function renderStep(runId, step) {
       <div class="step-body">
         <span class="step-name">${String(step.index).padStart(2, '0')}. ${escapeHtml(step.name)}</span>
         <span class="step-status-tag">${step.status}</span>
+        ${evidenceHtml}
         ${errorHtml}
         ${actionsHtml}
       </div>

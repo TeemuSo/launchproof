@@ -32,9 +32,13 @@ export LAUNCHPROOF_HOME="${LAUNCHPROOF_HOME:-${CLAUDE_PLUGIN_ROOT:-$HOME/Project
 Then per project:
 ```bash
 mkdir -p .launchproof/tests/helpers
-cp "$LAUNCHPROOF_HOME/tests/example.spec.ts" .launchproof/tests/
-cp "$LAUNCHPROOF_HOME/tests/helpers/shot.ts"  .launchproof/tests/helpers/
+cp "$LAUNCHPROOF_HOME/tests/example.spec.ts"     .launchproof/tests/
+cp "$LAUNCHPROOF_HOME/tests/helpers/shot.ts"      .launchproof/tests/helpers/
+cp "$LAUNCHPROOF_HOME/tests/helpers/highlight.ts" .launchproof/tests/helpers/
 ```
+These helpers are harness code copied into your project so specs can resolve them
+locally — treat them as read-only mirrors: never edit them in place, re-copy from
+`$LAUNCHPROOF_HOME` after a harness update so they never drift.
 Playwright's browsers are shared globally; `npx playwright install chromium` only if the
 shared cache is missing it.
 
@@ -61,10 +65,19 @@ shared cache is missing it.
    Records `.launchproof/runs/<id>/` and prints WORKING / BROKEN / INCONCLUSIVE.
    `LP_SLOWMO=0` for fast iteration.
 
-4. **Look, then hand over.** Read `.launchproof/runs/<id>/result.json` and the step
-   screenshots yourself — never claim done from a green line. Then ALWAYS serve the
-   dashboard and hand the user its URL — the dashboard (video + step timeline + parsed
-   assertions), not a raw video file, is the deliverable a human reviews:
+4. **Look AND audit, then hand over.** Read `.launchproof/runs/<id>/result.json` and the
+   step screenshots yourself — never claim done from a green line. `result.json`'s
+   `steps[]` is your evidence **index**: each step carries a `shot` (screenshot), a `dom`
+   (the serialized page HTML at that instant), and a `state` (cookies + localStorage). Use
+   it to audit your OWN test — a green verdict only means the assertions you wrote passed,
+   not that they asserted the right thing. Read/Grep the `dom` of the assertion step and
+   confirm the value the user cares about is *genuinely present in the page* (the real
+   price, the real label, the logged-in username), not a stale placeholder the test happened
+   to match. A passing test whose DOM shows `$0.00` is BROKEN in disguise — this catch is
+   the whole point. Read as few or as many step DOMs/shots as you need; they're on disk for
+   querying. Then ALWAYS serve the dashboard and hand the user its URL — the dashboard
+   (video + step timeline + parsed assertions), not a raw video file, is the deliverable a
+   human reviews:
    ```bash
    LAUNCHPROOF_DIR="$PWD/.launchproof" node "$LAUNCHPROOF_HOME/viewer/serve.js"   # http://localhost:4321
    ```
@@ -74,6 +87,11 @@ shared cache is missing it.
    process you didn't start.
 
 5. **Re-run after every change.** Tests accumulate — re-running is the point.
+
+**Keep runs out of git.** A run's `state/*.json` files are captured storage state — cookies
+and localStorage, i.e. live session credentials — and its screenshots/trace can show
+logged-in data. Add `.launchproof/runs/` (and `.launchproof/auth/`) to the project's
+`.gitignore`. The recordings are local evidence, not source.
 
 ## Post-run webhook (optional)
 
@@ -95,7 +113,9 @@ This is how a system can auto-receive a verdict (e.g. VUORO attaches proof to an
   to whoever reads the dashboard; prefer a semantic class or the visible text. Never a placeholder.
 - Visual/layout change? The screenshot is the proof a human eyeballs. Keep assertions to a
   couple of legible structural tripwires (a semantic class present, a column gone); don't
-  fake precision by measuring pixels.
+  fake precision by measuring pixels. To make a shot self-proving, outline the exact element
+  an assertion is about right before its screenshot fires with `mark(locator, 'ok'|'bad', label)`
+  from `./helpers/highlight` — green = the asserted value is present/correct, red = absent/wrong.
 - Metadata is NATIVE Playwright, never invented comment tags: intent as a native tag
   (`tag: '@functional'` or `'@security'`) and a plain-English meaning as a native
   annotation (`annotation: { type: 'meaning', description: '...' }`) in the test's

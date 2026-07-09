@@ -458,6 +458,28 @@ h1, h2, h3, .display {
   z-index: 2;
 }
 
+.chapter-speed {
+  position: absolute;
+  top: 50%;
+  right: 6px;
+  transform: translateY(-50%);
+  z-index: 3;
+  pointer-events: none;
+  padding: 2px 6px;
+  border-radius: 3px;
+  background: var(--accent);
+  color: var(--paper-panel);
+  font-size: 9px;
+  font-weight: 700;
+  text-transform: uppercase;
+  letter-spacing: 0.05em;
+  white-space: nowrap;
+}
+
+.chapter-speed[hidden] {
+  display: none;
+}
+
 .step-row {
   cursor: pointer;
 }
@@ -524,6 +546,26 @@ h1, h2, h3, .display {
   letter-spacing: 0.08em;
   margin-left: 8px;
   color: var(--ink-dim);
+}
+
+.step-evidence {
+  margin-top: 6px;
+  display: flex;
+  gap: 10px;
+}
+
+.step-evidence-link {
+  font-size: 10px;
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+  color: var(--accent);
+  text-decoration: none;
+  border-bottom: 1px dashed var(--accent);
+  padding-bottom: 1px;
+}
+
+.step-evidence-link:hover {
+  filter: brightness(1.2);
 }
 
 .step-error {
