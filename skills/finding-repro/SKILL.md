@@ -6,8 +6,9 @@ description: >-
   at it: it reads the review findings (Claude / human / bot comments), and for
   each writes the smallest test that ASSERTS THE CORRECT BEHAVIOR the finding
   says is violated. A RED (failing) test is a witness the finding is real; you
-  fix the bug later to turn it green. Produces a shareable LaunchGuard proof
-  page (per-finding verdict + evidence) plus the committed red tests. Triggers:
+  fix the bug later to turn it green. The committed red test plus its one-line
+  failing assertion is the deliverable; a shareable LaunchGuard proof page is
+  optional (best for UI findings). Triggers:
   "is this finding real", "repro this PR's review findings", "check Claude's
   review", "write a failing test for the code review", "verify the review
   before I fix anything", "does-vs-should for a reviewer". NOT a bug fixer: it
@@ -88,8 +89,15 @@ buggy path wins.
 | UI / flow / race / render-fidelity (e.g. a reveal race, a wrong-value cell) | **browser** | the launchproof harness, assert the user-facing thing |
 | Deploy / build / standalone-output-only (e.g. traced files missing in Vercel standalone) | usually **INCONCLUSIVE** | not locally reproducible; note the witnessing env |
 
+> **⛔ SAFETY-CRITICAL: write-capable probes and tests run against LOOPBACK ONLY.** A write-capable probe or test is one env var away from mutating PROD balances. Before any write-capable `psql` / `curl` / API / Supabase call, hard-check the host: run it ONLY if the host is `localhost`, `127.0.0.1`, or a loopback address. Hard-refuse any Postgres / Supabase / API URL whose host is anything else. If no local DB is available, SKIP (mark the test `pending` / INCONCLUSIVE): never fail it, and never reach for a remote to make it pass. This applies to the cheap probe in step (c) as much as to the committed test.
+
 Notes on the edges:
 
+- **Grants decide HOW you seed, not whether you seed.** The skill says reach the
+  buggy state; permission boundaries dictate the mechanism. Real case:
+  `service_role` had SELECT + RPC-EXECUTE but NOT INSERT on the money tables
+  (only SECURITY DEFINER RPCs write them), so seeding went THROUGH an RPC while
+  reads went direct. A raw INSERT can be denied: seed via the RPC, read direct.
 - **Browser repros** reuse the launchproof helpers and `mark()`, one `test()`
   per file, and assert the user-facing thing (the swallowed click, the wrong
   cell value). For a *pure render-fidelity* finding (right data, wrong pixels),
@@ -103,22 +111,55 @@ Notes on the edges:
   the missing `outputFileTracingIncludes` glob) but label it clearly as a
   static check, not a reproduction.
 
-### c. Write the test asserting the CORRECT (post-fix) behavior
+### c. Probe cheap FIRST: confirm it's real, find the triggering input
 
-Read a neighboring test FIRST and match the repo's conventions (its runner, its
-naming, its cleanup, its fixtures). Name the test in the finding's own words.
-Keep it minimal: one behavior per test.
+Before you write ANY framework test, reproduce with the cheapest throwaway probe
+you have: raw `psql`, a `curl`, a REPL line, a one-off script. This is the single
+most valuable move. It does two jobs a committed test cannot do yet:
+
+- **Confirm the bug is real before you invest.** A reviewer overstates as often
+  as understates. A ten-second raw-`psql` double-move repro can show the finding
+  is real, wrong, or narrower than claimed. Real case: the raw-psql repro WAS the
+  witness and revealed the reviewer had overstated the finding.
+- **Find the actual triggering input.** The probe is where you discover which
+  input class goes red. Vary the input class (partial vs full, credit vs debit,
+  boundary values) until one triggers. That input becomes the committed test's
+  input.
+
+The probe is throwaway (loopback only, per the safety gate above). The committed
+test comes AFTER the probe confirms the bug and hands you the triggering input.
+
+### d. Write the committed test asserting the CORRECT (post-fix) behavior
+
+Now that the probe confirmed the bug and gave you the triggering input, write the
+committed test. Read a neighboring test FIRST and match the repo's conventions
+(its runner, its naming, its cleanup, its fixtures). Name the test in the
+finding's own words. Keep it minimal: one behavior per test.
 
 **Do NOT fix the bug.** A red test is the intended outcome here. If reaching the
 buggy state needs seeding, fixtures, or a local password, do it, and SAY SO in
 the note. Nothing hidden.
 
-### d. Run it and record the verdict + evidence
+**Put it where the repo keeps its committed tests, and confirm that directory is
+TRACKED by git, not gitignored.** A red witness that cannot be committed is not a
+deliverable. Real case: `apps/web/tests/` was gitignored while the committed
+vitest lived beside the code. Run `git check-ignore <path>` before you finish.
 
-- **Unit / integration:** the runner's red/green output. Paste the failing
-  assertion (expected vs actual) into the note; that line IS the proof.
-- **Browser:** run via the launchproof harness, then read the artifacts
-  yourself. Do not trust the green line.
+### e. Run it, record the verdict, emit the lightweight summary
+
+**The core loop is: probe → red test → the failing assertion IS the proof.** For
+a backend / unit / integration finding, the committed red test plus its one-line
+failing assertion (expected vs actual) is the COMPLETE deliverable. Nothing needs
+to be uploaded.
+
+- **Unit / integration:** the runner's red/green output. The failing assertion
+  line IS the proof; record it verbatim.
+- **Browser:** run via the launchproof harness, then read the artifacts yourself
+  (do not trust the green line). Screenshot the reproduced state (the swallowed
+  click, the stale value); `mark(locator, 'bad', label)` from
+  `.launchproof/tests/helpers/highlight` outlines the element right before the
+  shot. `mark()` / DOM-shots / highlight helpers are **BROWSER-ONLY** and
+  irrelevant to backend findings.
 
 ```bash
 # Browser repro via the launchproof harness (one test() per file):
@@ -127,48 +168,47 @@ LAUNCHPROOF_DIR="$PWD/.launchproof" node "$LAUNCHPROOF_HOME/run.mjs" <feature>
 #   .launchproof/runs/<id>/result.json   (steps[].shot / .dom / .state)
 ```
 
-Screenshot the reproduced state (the swallowed click, the stale value). Use
-`mark(locator, 'bad', label)` from `.launchproof/tests/helpers/highlight` to
-outline the element the finding is about right before the shot.
+**Default output: a lightweight local summary.** Write a small markdown table,
+one row per finding: finding | layer | verdict | the failing assertion or the
+reason. This is the default artifact; no upload required.
 
-### e. Emit the proof artifact, reusing the proof server unchanged
+| Finding | Layer | Verdict | Failing assertion / reason |
+|---|---|---|---|
+| Double-move drains balance | integration (psql + vitest) | **RED / REAL** | `expect(balance).toBe(100)` got `50`: second move re-applied |
+| Full-drain transfer | integration | **GREEN / not reproduced** | overdraw guard saved the reviewer's literal example; only partials go red |
+| Standalone bundle missing file | deploy | **INCONCLUSIVE** | not locally reproducible; witnessed only in the Vercel standalone |
 
-One finding = one **criterion**. One trigger = one **subcheck**. Map it like so:
+Status mapping (applies to BOTH this table and the optional proof page in (f)):
 
-- criterion `title` = the finding title; criterion `requirement` = the
-  reviewer's claim text **verbatim**.
-- subcheck `condition` = the trigger / state; subcheck `expected` = the correct
-  (post-fix) behavior.
-- **subcheck `status`:**
+| Result | Verdict |
+|---|---|
+| fail / red | REAL |
+| pass / green | not reproduced (weak, non-exhaustive) |
+| pending | INCONCLUSIVE |
 
-| `status` | Means | Finding verdict |
-|---|---|---|
-| `fail` | finding REPRODUCED | bug is REAL |
-| `pass` | not reproduced | weak, non-exhaustive |
-| `pending` | could not witness locally | INCONCLUSIVE |
+### f. (Optional) Share it publicly via the LaunchGuard proof server
 
-So a **BROKEN top-level verdict here is the good outcome**: it means real
-findings exist and here are the red tests.
+Optional. Skip it for backend findings: their failing assertion is already the
+proof and the summary table in (e) is the deliverable. Reach for the proof server
+when you want a **shareable page** to post on the PR, which is the best fit for
+UI / browser findings.
 
-The `note` carries the red/green evidence (the failing assertion, the DOM value)
-AND, for any `pass` or `pending`, the asymmetry caveat spelled out ("not
-reproduced with the inputs tried: X, Y; a different input could still trigger
-it").
+When you do want a page: one finding = one **criterion**, one trigger = one
+**subcheck**. criterion `title` = the finding title; criterion `requirement` =
+the reviewer's claim text **verbatim**. subcheck `condition` = the trigger;
+subcheck `expected` = the correct (post-fix) behavior. subcheck `status` follows
+the same mapping as (e): `fail` = REPRODUCED / REAL (a **BROKEN** top-level
+verdict here is the good outcome), `pass` = not reproduced, `pending` =
+INCONCLUSIVE. The `note` carries the evidence AND, for any `pass` / `pending`,
+the asymmetry caveat ("not reproduced with the inputs tried: X, Y").
 
-**Evidence-gate interaction, read carefully:**
-
-- A **`fail`** subcheck (finding reproduced) does NOT require a screenshot under
-  the `paired-evidence` gate. You SHOULD still put the failing test output in
-  the `note` anyway. The assertion is the proof.
-- A **`pass`** subcheck (not reproduced) DOES require a screenshot + note per the
-  gate. So either capture one, or downgrade it to `pending`. A green you cannot
-  back with evidence is a `pending` by construction.
-
-Send `evidencePolicy: "paired-evidence"`. This is the exact same subcheck /
-criteria shape, gate, and endpoint as `visual-correctness`. Build the object,
-write it to `proof.json`, gate it locally, then POST `{ data, issueUrl?,
-prUrls? }`. The reusable local gate lives beside that skill at
-`../visual-correctness/validate-proof.mjs`; the POST snippet is identical:
+Under the `paired-evidence` gate: a `fail` needs no screenshot (the assertion is
+the proof, but include it in the `note` anyway); a `pass` DOES need a screenshot
++ note, so either capture one or downgrade it to `pending`. Build the object,
+write it to `proof.json`, gate it locally, then POST `{ data, issueUrl?, prUrls?
+}`. This is the exact same shape, gate, and endpoint as `visual-correctness`; the
+reusable gate lives at `../visual-correctness/validate-proof.mjs` and the POST
+snippet is identical:
 
 ```bash
 # Default endpoint is prod; override for staging:
@@ -180,7 +220,7 @@ node -e '
   const fs=require("fs");
   const ep=process.env.LAUNCHPROOF_PROOF_ENDPOINT||"https://www.launchguard.dev/api/proof";
   const data=JSON.parse(fs.readFileSync(process.argv[1],"utf8"));
-  // Local gate — mirrors the server so a bad proof never leaves your machine.
+  // Local gate: mirrors the server so a bad proof never leaves your machine.
   if(data.evidencePolicy==="paired-evidence"){
     const IMG=/^data:image\/(?:png|jpe?g|webp|gif|avif);base64,[A-Za-z0-9+/]+=*$/;
     const bad=[];
@@ -191,7 +231,7 @@ node -e '
       if(!(typeof s.note==="string"&&s.note.trim())) miss.push("note");
       if(miss.length) bad.push(`criteria[${i}].subchecks[${j}] "${s.condition}" missing: ${miss.join(" + ")}`);
     }));
-    if(bad.length){console.error("proof gate FAILED — a pass needs a screenshot + note:\n"+bad.join("\n")+"\nCapture the evidence, or set status to pending.");process.exit(1);}
+    if(bad.length){console.error("proof gate FAILED: a pass needs a screenshot + note:\n"+bad.join("\n")+"\nCapture the evidence, or set status to pending.");process.exit(1);}
   }
   const body={data};
   if(process.env.PROOF_ISSUE_URL) body.issueUrl=process.env.PROOF_ISSUE_URL;
@@ -229,7 +269,7 @@ The subcheck object shape (same as `visual-correctness`):
 
 Post the returned public URL back on the PR.
 
-### f. Hand off
+### g. Hand off
 
 State plainly, honoring the asymmetry:
 
@@ -244,6 +284,13 @@ State plainly, honoring the asymmetry:
   reached the branch (the burst-insert code ran, the empty-receipts state was
   live) before trusting a pass. An untriggered path is `pending`, not "not
   reproduced."
+- **The reviewer's own example is self-healing.** A green on the reviewer's
+  LITERAL example is NOT "not reproduced": a guard elsewhere may save that exact
+  case while a neighbouring input still breaks. Real case: the review's full-drain
+  transfer example passed (an overdraw guard accidentally caught it); only partial
+  transfers and credit adjustments went red. When the reviewer's exact example
+  goes green, vary the input class (partial vs full, credit vs debit, boundaries)
+  before concluding anything. This is why you probe first (step c).
 - **A "(latent / not currently triggered)" finding called not-reproduced because
   the happy path is green.** These are real in the code but need a specific
   trigger to go red. Reaching that trigger IS the work. Do not report the
@@ -269,6 +316,9 @@ State plainly, honoring the asymmetry:
 ## Minimal by design
 
 No bespoke parser, no new server, no new harness. This skill reuses `gh` to read
-the review, the launchproof browser harness for UI repros, the repo's own unit /
-integration runners for the rest, and the existing proof endpoint + gate from
-`visual-correctness`. Drive it one finding at a time and learn from each.
+the review, a cheap raw probe (`psql` / `curl` / REPL) to confirm and find the
+triggering input, the repo's own unit / integration runners for the committed
+tests, the launchproof browser harness for UI repros, and only optionally the
+proof endpoint + gate from `visual-correctness` for a shareable page. The default
+deliverable is the committed red test plus a lightweight summary table. Drive it
+one finding at a time and learn from each.
