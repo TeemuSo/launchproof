@@ -31,14 +31,15 @@ export LAUNCHPROOF_HOME="${LAUNCHPROOF_HOME:-${CLAUDE_PLUGIN_ROOT:-$HOME/Project
 ```
 Then per project:
 ```bash
-mkdir -p .launchproof/tests/helpers
-cp "$LAUNCHPROOF_HOME/tests/example.spec.ts"     .launchproof/tests/
-cp "$LAUNCHPROOF_HOME/tests/helpers/shot.ts"      .launchproof/tests/helpers/
-cp "$LAUNCHPROOF_HOME/tests/helpers/highlight.ts" .launchproof/tests/helpers/
+mkdir -p .launchproof/tests
+cp "$LAUNCHPROOF_HOME/tests/example.spec.ts" .launchproof/tests/
 ```
-These helpers are harness code copied into your project so specs can resolve them
-locally — treat them as read-only mirrors: never edit them in place, re-copy from
-`$LAUNCHPROOF_HOME` after a harness update so they never drift.
+The capture helpers (`tests/helpers/shot.ts`, `tests/helpers/highlight.ts`) are SHIPPED by
+the harness: `run.mjs` provisions them into `.launchproof/tests/helpers/` automatically on
+first run (copy-if-missing — an existing project-local helper always wins, so nothing you
+already have is ever overwritten). Treat the provisioned copies as read-only mirrors: never
+edit them in place; to pick up a harness update, delete the local copy (or re-copy from
+`$LAUNCHPROOF_HOME`) and re-run. Never hand-port helpers from another project.
 Playwright's browsers are shared globally; `npx playwright install chromium` only if the
 shared cache is missing it.
 
@@ -115,8 +116,13 @@ This is how a system can auto-receive a verdict (e.g. VUORO attaches proof to an
 - Visual/layout change? The screenshot is the proof a human eyeballs. Keep assertions to a
   couple of legible structural tripwires (a semantic class present, a column gone); don't
   fake precision by measuring pixels. To make a shot self-proving, outline the exact element
-  an assertion is about right before its screenshot fires with `mark(locator, 'ok'|'bad', label)`
-  from `./helpers/highlight` — green = the asserted value is present/correct, red = absent/wrong.
+  an assertion is about right before its screenshot fires with
+  `mark(locator, 'ok'|'warn'|'bad'|'neutral', label)` from `./helpers/highlight`. The tone is a
+  severity claim about the STATE, not test decoration: `ok` green = asserted value
+  present/correct or a confirmed-good state; `warn` amber = a warning-severity state
+  (needs-review, suspicious) correctly shown; `bad` red = a violation/exposure/danger state;
+  `neutral` slate = a pure "this element" pointer with no severity claim. Never mark an
+  amber/red state green just because the assertion passed.
 - Metadata is NATIVE Playwright, never invented comment tags: intent as a native tag
   (`tag: '@functional'` or `'@security'`) and a plain-English meaning as a native
   annotation (`annotation: { type: 'meaning', description: '...' }`) in the test's

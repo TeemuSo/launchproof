@@ -32,6 +32,26 @@ const TEST_RESULTS_DIR = path.join(DATA_DIR, 'test-results');
 // since Playwright's JSON reporter does not echo back resolved `use` options.
 const TARGET_URL = process.env.TARGET_URL || 'http://localhost:3000';
 
+// The harness SHIPS the capture helpers (tests/helpers/: shot.ts's
+// recordedStep evidence triple, highlight.ts's mark). A project's data dir
+// gets them provisioned automatically on first run — copy-if-MISSING only,
+// never overwrite: an existing project-local helper always wins, so projects
+// that already carry (or deliberately customized) their own copies keep
+// working untouched. To pick up a harness update, delete the local copy (or
+// re-copy from $LAUNCHPROOF_HOME) and re-run.
+function provisionHelpers(dataDir) {
+  const srcDir = path.join(ROOT, 'tests', 'helpers');
+  if (!existsSync(srcDir)) return;
+  const destDir = path.join(dataDir, 'tests', 'helpers');
+  mkdirSync(destDir, { recursive: true });
+  for (const f of readdirSync(srcDir).filter((f) => f.endsWith('.ts'))) {
+    const dest = path.join(destDir, f);
+    if (existsSync(dest)) continue; // project-local copy wins, always
+    copyFileSync(path.join(srcDir, f), dest);
+    console.log(`launchproof: provisioned tests/helpers/${f} from the harness`);
+  }
+}
+
 // Give the project's data dir a node_modules symlink to the harness's, so the
 // project's spec files resolve the SAME single @playwright/test the harness
 // config and CLI use. The data dir needs no install of its own.
@@ -84,7 +104,10 @@ function main() {
   // the harness's node_modules: specs resolve through it to the one real copy,
   // the config resolves to it directly, same realpath -> one instance. DATA
   // therefore needs no install of its own; it holds only specs and runs.
-  if (DATA_DIR !== ROOT) linkNodeModules(DATA_DIR);
+  if (DATA_DIR !== ROOT) {
+    linkNodeModules(DATA_DIR);
+    provisionHelpers(DATA_DIR);
+  }
 
   // 0. Refuse multi-test spec files BEFORE running anything. LaunchProof's
   // contract is one name -> one test -> one verdict -> one recording (that's
