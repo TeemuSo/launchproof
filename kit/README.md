@@ -1,81 +1,9 @@
-# LaunchProof repo process kit
+# The kit lives in the LaunchGuard plugin
 
-A portable issues -> PR backbone for any repo. One command installs issue
-forms, a PR template, an automated review that posts on every PR, and
-auto-close of linked issues on non-default branches.
+`kit/` is now part of the `launchguard` plugin: https://github.com/TeemuSo/launchguard-skill
 
-## Quickstart (any repo, first try)
+Install it from there:
 
-```bash
-# 1. Install (from inside the repo, or pass its path)
-bash "$LAUNCHPROOF_HOME/kit/install.sh" /path/to/repo
-
-# 2. Commit and push what it installed
-cd /path/to/repo && git add .github && git commit -m "chore: repo process kit" && git push
-
-# 3. Give the automated review a credential (ONE of these; until then it
-#    skips with a notice, it does not fail)
-claude setup-token && gh secret set CLAUDE_CODE_OAUTH_TOKEN   # Pro/Max token
-gh secret set ANTHROPIC_API_KEY                               # or a Console API key
 ```
-
-The review posts through the Claude GitHub App. Install it once for your
-account or the repo: https://github.com/apps/claude. No LaunchProof setup is
-required; without it, state your proof (or "docs-only") in the PR body.
-
-## The loop (one agent per issue)
-
-1. Open an issue from the `task` or `bug` form (acceptance criteria + proof plan baked in).
-2. One agent takes the issue: branch, build, open a PR with `Closes #N` in the body.
-3. The automated review posts a "## Automated review" comment on the PR by itself.
-4. Post the proof into the PR: `bash "$LAUNCHPROOF_HOME/kit/post-proof.sh" <pr-number> .launchproof/runs/<run-id>` (add `--proof-url` if a hosted proof page exists).
-5. Merge. The linked issue closes, on any branch.
-
-## What each piece does
-
-| File | Does |
-|---|---|
-| `.github/ISSUE_TEMPLATE/task.yml`, `bug.yml` | Issue forms: what/why/acceptance/proof (task), expected/actual/repro/evidence (bug). Apply the `task`/`bug` labels; the installer creates missing labels. |
-| `.github/pull_request_template.md` | PR body skeleton: `Closes #N`, proof section, playbook checklist. |
-| `.github/workflows/claude-code-review.yml` | Automated review on every PR. ALWAYS posts one "## Automated review" summary comment (plus inline comments on specific issues). Skips with a notice when no credential secret is set. |
-| `.github/workflows/issue-autoclose.yml` | GitHub only honors `Closes #N` for merges into the DEFAULT branch. This restores it for merges into any other branch (for example `dev`), and stays silent on default-branch merges so nothing double-fires. |
-| `kit/post-proof.sh` | Posts a LaunchProof run's verdict (WORKING / BROKEN / INCONCLUSIVE), per-step table, and evidence location into a PR as a comment, from the run's `result.json`. |
-| `kit/selftest.sh` | End-to-end self-test: point it at a fresh empty repo (`gh repo create x --private`, then `bash kit/selftest.sh OWNER/x`) and it drives the whole loop above, printing the real evidence for every leg (comment URLs and bodies, issue close events, run conclusions). Legs it cannot witness (no credential, no LaunchProof) are reported SKIP, never faked. |
-
-## Installer behavior
-
-- Idempotent: existing files are SKIPPED (use `--force` to overwrite), so a
-  repo that already has its own review workflow keeps it.
-- Creates the `task` and `bug` labels if missing (fresh GitHub repos are
-  seeded with `bug` but NOT `task`).
-- Detects your default branch and tells you when the issue forms and PR
-  template will actually render in GitHub's UI (default branch only).
-- Degrades gracefully: no `gh`, no origin remote, or no credential secret is
-  a printed notice, never a failure.
-
-## Portability rules (keep it this way)
-
-- Nothing in `templates/` may reference a specific repo, branch name, product,
-  or directory layout. The kit must install identically into a single-service
-  repo or a monorepo.
-- Repo-specific tuning happens in the TARGET repo after install (the installer
-  never overwrites), not by editing the kit for one consumer.
-- External requirements: `gh` (authenticated). For automated review: one of
-  the two secrets above plus the Claude GitHub App. LaunchProof is optional.
-
-## Known limits (honest by design)
-
-- GitHub reads issue forms AND the PR template from the repo's DEFAULT branch
-  only. Installed on a working branch, they ride along until that branch is
-  promoted; until then open issues with `gh issue create` using the same
-  fields, and paste the PR template structure into PR bodies.
-- `pull_request`-triggered workflows added by a PR do run on that same PR, but
-  `issue-autoclose.yml` (a `closed`-type trigger) must already be on the BASE
-  branch when the merge happens; land the kit first, then the loop is complete
-  for every following PR.
-- LaunchProof run directories are local and gitignored, so the proof comment
-  records the verdict, step table, run id, and machine path. A public link
-  requires `--proof-url` (for example a hosted proof page).
-- The review agent posts as `claude[bot]` via the Claude GitHub App. If you
-  cannot install the app, add `github_token: ${{ secrets.GITHUB_TOKEN }}` to
-  the review step; comments then post as `github-actions[bot]`.
+bash "${CLAUDE_PLUGIN_ROOT}/kit/install.sh" [/path/to/repo]
+```
